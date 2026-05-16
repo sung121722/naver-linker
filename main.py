@@ -103,11 +103,14 @@ async def search(req: SearchRequest):
 @app.get("/api/debug")
 def debug_env():
     key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if key:
-        masked = key[:8] + "..." + key[-4:]
-    else:
-        masked = "(NOT SET)"
-    return {"ANTHROPIC_API_KEY": masked, "all_env_keys": [k for k in os.environ if "ANTHROPIC" in k.upper()]}
+    masked = (key[:8] + "..." + key[-4:]) if key else "(NOT SET)"
+    # 모든 env 키 이름 노출 (값 제외)
+    all_keys = sorted(os.environ.keys())
+    return {
+        "ANTHROPIC_API_KEY": masked,
+        "all_env_keys": all_keys,
+        "total_vars": len(all_keys),
+    }
 
 
 @app.get("/api/session")
