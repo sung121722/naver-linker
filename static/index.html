@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>네이버 내부링크 어시스턴트</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Pretendard', -apple-system, sans-serif; background: #f5f7fa; color: #1a1a2e; min-height: 100vh; }
+
+  header { background: #03c75a; color: white; padding: 20px 24px; }
+  header h1 { font-size: 20px; font-weight: 700; }
+  header p  { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+
+  .container { max-width: 720px; margin: 32px auto; padding: 0 16px; }
+
+  .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #444; }
+
+  .input-row { display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; padding: 10px 14px; border: 1.5px solid #e0e0e0;
+    border-radius: 8px; font-size: 14px; outline: none;
+    transition: border-color .2s;
+  }
+  input[type=text]:focus { border-color: #03c75a; }
+
+  button {
+    padding: 10px 18px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: opacity .2s;
+  }
+  button:hover { opacity: .85; }
+  .btn-primary { background: #03c75a; color: white; }
+  .btn-gray    { background: #f0f0f0; color: #555; }
+
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px; margin-left: 8px;
+  }
+  .badge-green { background: #e6faf0; color: #03c75a; }
+  .badge-blue  { background: #e8f0fe; color: #1a73e8; }
+  .badge-gray  { background: #f0f0f0; color: #888; }
+
+  .status-bar {
+    font-size: 13px; padding: 10px 14px; border-radius: 8px;
+    margin-top: 10px; display: none;
+  }
+  .status-ok   { background: #e6faf0; color: #1a8a45; }
+  .status-err  { background: #fff0f0; color: #c0392b; }
+  .status-info { background: #e8f0fe; color: #1a73e8; }
+
+  .result-item {
+    border: 1.5px solid #e8e8e8; border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 10px;
+    transition: border-color .2s;
+  }
+  .result-item:hover { border-color: #03c75a; }
+  .result-num   { font-size: 12px; color: #aaa; margin-bottom: 4px; }
+  .result-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .result-url   {
+    font-size: 12px; color: #03c75a; word-break: break-all;
+    cursor: pointer; text-decoration: underline;
+  }
+  .result-reason { font-size: 13px; color: #666; margin-top: 6px; }
+
+  .copy-btn {
+    font-size: 11px; padding: 3px 8px; margin-left: 8px;
+    background: #f0f0f0; color: #555; border-radius: 4px;
+    border: none; cursor: pointer; vertical-align: middle;
+  }
+  .copy-btn.copied { background: #e6faf0; color: #03c75a; }
+
+  .remaining { font-size: 12px; color: #888; text-align: right; margin-top: 8px; }
+
+  .paywall {
+    text-align: center; padding: 32px 24px;
+    border: 2px dashed #e0e0e0; border-radius: 12px; display: none;
+  }
+  .paywall h3 { font-size: 18px; margin-bottom: 8px; }
+  .paywall p  { font-size: 14px; color: #666; margin-bottom: 20px; }
+  .paywall .price { font-size: 28px; font-weight: 700; color: #03c75a; margin-bottom: 4px; }
+
+  #results { display: none; }
+  .spinner { text-align: center; padding: 20px; color: #aaa; font-size: 14px; display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>네이버 내부링크 어시스턴트</h1>
+  <p>새 글 키워드만 입력하면 관련 글을 자동으로 찾아드립니다</p>
+</header>
+
+<main class="container">
+
+  <!-- Step 1: 블로그 등록 -->
+  <section class="card" id="step1">
+    <h2>① 내 블로그 등록</h2>
+    <div class="input-row">
+      <input type="text" id="blogId" placeholder="블로그 ID (예: healthyseniors)" />
+      <button class="btn-primary" onclick="indexBlog()">등록</button>
+    </div>
+    <div class="status-bar" id="indexStatus"></div>
+  </section>
+
+  <!-- Step 2: 키워드 검색 -->
+  <section class="card" id="step2" style="display:none">
+    <h2>② 새 글 키워드 입력
+      <span class="badge badge-green" id="blogBadge"></span>
+    </h2>
+    <div class="input-row">
+      <input type="text" id="keyword" placeholder="새 글 주제나 키워드 (예: 허리 통증)" onkeydown="if(event.key==='Enter') search()" />
+      <select id="topN" style="padding:10px 8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;background:white;cursor:pointer;">
+        <option value="5">5개</option>
+        <option value="10">10개</option>
+        <option value="15">15개</option>
+        <option value="20">20개</option>
+      </select>
+      <button class="btn-primary" onclick="search()">찾기</button>
+    </div>
+    <div class="spinner" id="spinner">관련 글 분석 중...</div>
+  </section>
+
+  <!-- 결과 -->
+  <section id="results">
+    <div id="resultList"></div>
+    <div class="remaining" id="remainingMsg"></div>
+  </section>
+
+  <!-- 결제 유도 -->
+  <div class="paywall" id="paywall">
+    <h3>무료 검색 10회를 모두 사용했어요</h3>
+    <p>구독하면 블로그 3개, 무제한 검색이 가능합니다</p>
+    <div class="price">월 9,900원</div>
+    <p style="font-size:12px;color:#aaa;margin-bottom:16px">언제든 해지 가능</p>
+    <button class="btn-primary" style="font-size:15px;padding:12px 32px" onclick="alert('결제 준비 중입니다!')">구독 시작하기</button>
+  </div>
+
+</main>
+
+<script>
+let sessionId = localStorage.getItem('session_id');
+let currentBlogId = localStorage.getItem('blog_id') || '';
+
+async function initSession() {
+  if (!sessionId) {
+    const res = await fetch('/api/session');
+    const data = await res.json();
+    sessionId = data.session_id;
+    localStorage.setItem('session_id', sessionId);
+  }
+  if (currentBlogId) {
+    const res = await fetch(`/api/status/${currentBlogId}`);
+    const data = await res.json();
+    if (data.indexed) {
+      showStep2(currentBlogId, data.post_count);
+      document.getElementById('blogId').value = currentBlogId;
+    }
+  }
+}
+
+function showStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = `status-bar status-${type}`;
+  el.style.display = 'block';
+}
+
+function showStep2(blogId, postCount) {
+  document.getElementById('step2').style.display = 'block';
+  document.getElementById('blogBadge').textContent = `${blogId} · ${postCount}개 글`;
+  currentBlogId = blogId;
+  localStorage.setItem('blog_id', blogId);
+}
+
+function extractBlogId(raw) {
+  raw = raw.trim().replace(/\/$/, '');
+  if (raw.includes('blog.naver.com/')) {
+    return raw.split('blog.naver.com/').pop().split('/')[0].toLowerCase();
+  }
+  return raw.toLowerCase();
+}
+
+async function indexBlog() {
+  const raw = document.getElementById('blogId').value.trim();
+  if (!raw) return;
+  const blogId = extractBlogId(raw);
+  document.getElementById('blogId').value = blogId;
+  showStatus('indexStatus', '블로그 글 목록 수집 중... (최초 1회, 이후 즉시)', 'info');
+
+  const res = await fetch('/api/index', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({blog_id: blogId})
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    showStatus('indexStatus', data.detail || '오류가 발생했습니다', 'err');
+    return;
+  }
+
+  const msg = data.cached
+    ? `이미 등록된 블로그입니다 (${data.post_count}개 글)`
+    : `등록 완료! ${data.post_count}개 글을 불러왔습니다`;
+  showStatus('indexStatus', msg, 'ok');
+  showStep2(data.blog_id, data.post_count);
+}
+
+async function search() {
+  const keyword = document.getElementById('keyword').value.trim();
+  if (!keyword || !currentBlogId) return;
+
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('paywall').style.display = 'none';
+
+  const res = await fetch('/api/search', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({blog_id: currentBlogId, keyword, session_id: sessionId, top_n: parseInt(document.getElementById('topN').value)})
+  });
+  const data = await res.json();
+  document.getElementById('spinner').style.display = 'none';
+
+  if (res.status === 402) {
+    document.getElementById('paywall').style.display = 'block';
+    return;
+  }
+  if (!res.ok) {
+    alert(data.detail || '오류가 발생했습니다');
+    return;
+  }
+
+  renderResults(data.results, data.remaining);
+}
+
+function renderResults(results, remaining) {
+  const list = document.getElementById('resultList');
+  list.innerHTML = results.map((r, i) => `
+    <div class="result-item">
+      <div class="result-num">${i + 1}번째 추천</div>
+      <div class="result-title">${r.title}</div>
+      <div>
+        <span class="result-url" onclick="window.open('${r.url}')">${r.url}</span>
+        <button class="copy-btn" onclick="copyUrl(this, '${r.url}')">복사</button>
+      </div>
+      <div class="result-reason">💡 ${r.reason}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('remainingMsg').textContent =
+    remaining !== null ? `무료 검색 잔여: ${remaining}회` : '';
+  document.getElementById('results').style.display = 'block';
+}
+
+function copyUrl(btn, url) {
+  navigator.clipboard.writeText(url);
+  btn.textContent = '복사됨!';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('copied'); }, 1500);
+}
+
+initSession();
+</script>
+</body>
+</html>
