@@ -81,7 +81,10 @@ async def search(req: SearchRequest):
 
     loop = asyncio.get_running_loop()
     top_n = max(1, min(req.top_n, 20))
-    results = await loop.run_in_executor(None, matcher.find_related, posts, req.keyword, top_n)
+    try:
+        results = await loop.run_in_executor(None, matcher.find_related, posts, req.keyword, top_n)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"검색 오류: {str(e)}")
     db.increment_search(session_id, blog_id)
 
     count_after = count + 1

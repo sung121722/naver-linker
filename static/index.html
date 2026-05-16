@@ -229,7 +229,8 @@ async function search() {
     return;
   }
   if (!res.ok) {
-    alert(data.detail || '오류가 발생했습니다');
+    document.getElementById('spinner').style.display = 'none';
+    alert(`오류 (${res.status}): ${data.detail || JSON.stringify(data)}`);
     return;
   }
 
