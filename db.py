@@ -38,7 +38,7 @@ def init_db():
         """)
 
 
-FREE_LIMIT = 10
+FREE_LIMIT = 5
 
 
 def get_search_count(session_id: str) -> int:
