@@ -1,5 +1,6 @@
 import uuid
 import asyncio
+import os
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -96,6 +97,16 @@ async def search(req: SearchRequest):
         "remaining": remaining,
         "is_paid": is_paid,
     }
+
+
+@app.get("/api/debug")
+def debug_env():
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key:
+        masked = key[:8] + "..." + key[-4:]
+    else:
+        masked = "(NOT SET)"
+    return {"ANTHROPIC_API_KEY": masked, "all_env_keys": [k for k in os.environ if "ANTHROPIC" in k.upper()]}
 
 
 @app.get("/api/session")
