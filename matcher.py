@@ -10,8 +10,10 @@ def _get_client() -> Anthropic:
         for line in env.read_text(encoding="utf-8").splitlines():
             if line.startswith("ANTHROPIC_API_KEY="):
                 key = line.split("=", 1)[1].strip()
-                return Anthropic(api_key=key)
-    return Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+                if key:
+                    return Anthropic(api_key=key)
+    # Railway 환경변수에서 자동 읽기
+    return Anthropic()
 
 
 def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
