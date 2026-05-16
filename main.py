@@ -54,7 +54,7 @@ async def index_blog(req: IndexRequest):
             "cached": True,
         }
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     posts = await loop.run_in_executor(None, indexer.fetch_all_posts, blog_id)
     if not posts:
         raise HTTPException(status_code=404, detail="블로그를 찾을 수 없습니다. ID를 확인해주세요.")
@@ -79,7 +79,7 @@ async def search(req: SearchRequest):
     if not posts:
         raise HTTPException(status_code=404, detail="먼저 블로그를 등록해주세요.")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     top_n = max(1, min(req.top_n, 20))
     results = await loop.run_in_executor(None, matcher.find_related, posts, req.keyword, top_n)
     db.increment_search(session_id, blog_id)
