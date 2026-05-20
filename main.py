@@ -65,18 +65,37 @@ async def index_blog(req: IndexRequest):
     return {"ok": True, "blog_id": blog_id, "post_count": len(posts), "cached": False}
 
 
+def get_client_ip(request: Request) -> str:
+    # Render 등 프록시 환경에서 실제 IP 추출
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host
+
+
 @app.post("/api/search")
-async def search(req: SearchRequest):
+async def search(req: SearchRequest, request: Request):
     blog_id = req.blog_id.strip().lower()
     session_id = req.session_id
+    client_ip = get_client_ip(request)
 
+    # 세션 기반 체크
     count, plan = db.get_search_count(session_id)
     limit = db.get_limit(plan)
+
+    # IP 기반 체크 (무료 플랜만 적용)
+    if plan == "free":
+        ip_count = db.get_ip_search_count(client_ip)
+        if ip_count >= limit:
+            raise HTTPException(
+                status_code=402,
+                detail="무료 체험이 끝났습니다."
+            )
 
     if count >= limit:
         raise HTTPException(
             status_code=402,
-            detail=f"{plan} 플랜 검색 {limit}회를 모두 사용했습니다."
+            detail="무료 체험이 끝났습니다."
         )
 
     posts = db.get_posts(blog_id)
@@ -89,7 +108,10 @@ async def search(req: SearchRequest):
         results = await loop.run_in_executor(None, matcher.find_related, posts, req.keyword, top_n)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"검색 오류: {str(e)}")
+
     db.increment_search(session_id, blog_id)
+    if plan == "free":
+        db.increment_ip_search(client_ip)
 
     count_after = count + 1
     remaining = max(0, limit - count_after)

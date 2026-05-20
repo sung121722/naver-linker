@@ -47,8 +47,14 @@ def init_db():
                 is_paid      INTEGER DEFAULT 0,
                 created_at   TEXT DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS ip_searches (
+                ip           TEXT PRIMARY KEY,
+                search_count INTEGER DEFAULT 0,
+                created_at   TEXT DEFAULT (datetime('now'))
+            );
         """)
-        # 기존 DB 마이그레이션: plan 컬럼 없으면 추가
+        # 기존 DB 마이그레이션
         try:
             conn.execute("ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'")
         except Exception:
@@ -70,6 +76,23 @@ def get_search_count(session_id: str):
 
 def get_limit(plan: str) -> int:
     return PLAN_LIMITS.get(plan, FREE_LIMIT)
+
+
+def get_ip_search_count(ip: str) -> int:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT search_count FROM ip_searches WHERE ip = ?", (ip,)
+        ).fetchone()
+        return row["search_count"] if row else 0
+
+
+def increment_ip_search(ip: str):
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO ip_searches (ip, search_count)
+            VALUES (?, 1)
+            ON CONFLICT(ip) DO UPDATE SET search_count = search_count + 1
+        """, (ip,))
 
 
 def increment_search(session_id: str, blog_id: str):
