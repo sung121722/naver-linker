@@ -2,9 +2,6 @@ import os
 import psycopg2
 import psycopg2.extras
 
-_URL = os.environ.get("DATABASE_URL", "")
-if _URL.startswith("postgres://"):
-    _URL = _URL.replace("postgres://", "postgresql://", 1)
 
 FREE_LIMIT    = 5
 STARTER_LIMIT = 120
@@ -18,7 +15,10 @@ PLAN_LIMITS = {
 
 
 def get_conn():
-    return psycopg2.connect(_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    url = os.environ.get("DATABASE_URL", "")
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    return psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 def init_db():
