@@ -130,11 +130,36 @@
 
   <!-- 결제 유도 -->
   <div class="paywall" id="paywall">
-    <h3>무료 검색 5회를 모두 사용했어요</h3>
-    <p>구독하면 블로그 3개, 무제한 검색이 가능합니다</p>
-    <div class="price">월 9,900원</div>
-    <p style="font-size:12px;color:#aaa;margin-bottom:16px">언제든 해지 가능</p>
-    <button class="btn-primary" style="font-size:15px;padding:12px 32px" onclick="alert('결제 준비 중입니다!')">구독 시작하기</button>
+    <h3>무료 체험 5회를 모두 사용했어요 🙁</h3>
+    <p style="margin-bottom:20px">구독하면 더 많이 검색할 수 있어요!</p>
+
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:20px">
+      <!-- 스타터 -->
+      <div style="border:2px solid #e0e0e0;border-radius:12px;padding:20px 24px;min-width:160px;text-align:center">
+        <div style="font-size:13px;color:#888;margin-bottom:6px">스타터</div>
+        <div class="price" style="font-size:24px">월 4,900원</div>
+        <ul style="list-style:none;font-size:13px;color:#555;margin:10px 0;text-align:left;padding:0">
+          <li>✅ 월 120회 검색</li>
+          <li>✅ 블로그 1개</li>
+          <li>✅ 언제든 해지</li>
+        </ul>
+        <button class="btn-gray" style="width:100%;font-size:13px;padding:8px" onclick="alert('결제 준비 중입니다!')">시작하기</button>
+      </div>
+
+      <!-- 프로 -->
+      <div style="border:2px solid #03c75a;border-radius:12px;padding:20px 24px;min-width:160px;text-align:center;position:relative">
+        <div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#03c75a;color:white;font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px">추천</div>
+        <div style="font-size:13px;color:#888;margin-bottom:6px">프로</div>
+        <div class="price" style="font-size:24px">월 9,900원</div>
+        <ul style="list-style:none;font-size:13px;color:#555;margin:10px 0;text-align:left;padding:0">
+          <li>✅ 월 400회 검색</li>
+          <li>✅ 블로그 3개</li>
+          <li>✅ 언제든 해지</li>
+        </ul>
+        <button class="btn-primary" style="width:100%;font-size:13px;padding:8px" onclick="alert('결제 준비 중입니다!')">시작하기</button>
+      </div>
+    </div>
+    <p style="font-size:11px;color:#bbb">결제 시스템 준비 중입니다. 곧 오픈 예정!</p>
   </div>
 
 </main>

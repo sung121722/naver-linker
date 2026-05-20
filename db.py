@@ -3,6 +3,17 @@ from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "app.db"
 
+# 플랜별 월 검색 한도
+FREE_LIMIT    = 5
+STARTER_LIMIT = 120
+PRO_LIMIT     = 400
+
+PLAN_LIMITS = {
+    "free":    FREE_LIMIT,
+    "starter": STARTER_LIMIT,
+    "pro":     PRO_LIMIT,
+}
+
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -14,42 +25,51 @@ def init_db():
     with get_conn() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS blogs (
-                blog_id   TEXT PRIMARY KEY,
+                blog_id    TEXT PRIMARY KEY,
                 post_count INTEGER DEFAULT 0,
                 indexed_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS posts (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                blog_id   TEXT NOT NULL,
-                title     TEXT NOT NULL,
-                url       TEXT NOT NULL,
-                date      TEXT,
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                blog_id TEXT NOT NULL,
+                title   TEXT NOT NULL,
+                url     TEXT NOT NULL,
+                date    TEXT,
                 UNIQUE(blog_id, url)
             );
 
             CREATE TABLE IF NOT EXISTS users (
                 session_id   TEXT PRIMARY KEY,
                 blog_id      TEXT,
+                plan         TEXT DEFAULT 'free',
                 search_count INTEGER DEFAULT 0,
                 is_paid      INTEGER DEFAULT 0,
                 created_at   TEXT DEFAULT (datetime('now'))
             );
         """)
+        # 기존 DB 마이그레이션: plan 컬럼 없으면 추가
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'")
+        except Exception:
+            pass
 
 
-FREE_LIMIT = 5
-
-
-def get_search_count(session_id: str) -> int:
+def get_search_count(session_id: str):
+    """(count, plan) 반환"""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT search_count, is_paid FROM users WHERE session_id = ?",
+            "SELECT search_count, plan, is_paid FROM users WHERE session_id = ?",
             (session_id,)
         ).fetchone()
         if not row:
-            return 0, False
-        return row["search_count"], bool(row["is_paid"])
+            return 0, "free"
+        plan = row["plan"] if row["plan"] else ("starter" if row["is_paid"] else "free")
+        return row["search_count"], plan
+
+
+def get_limit(plan: str) -> int:
+    return PLAN_LIMITS.get(plan, FREE_LIMIT)
 
 
 def increment_search(session_id: str, blog_id: str):

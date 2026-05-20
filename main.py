@@ -70,11 +70,13 @@ async def search(req: SearchRequest):
     blog_id = req.blog_id.strip().lower()
     session_id = req.session_id
 
-    count, is_paid = db.get_search_count(session_id)
-    if not is_paid and count >= db.FREE_LIMIT:
+    count, plan = db.get_search_count(session_id)
+    limit = db.get_limit(plan)
+
+    if count >= limit:
         raise HTTPException(
             status_code=402,
-            detail=f"무료 검색 {db.FREE_LIMIT}회를 모두 사용했습니다. 구독 후 무제한 사용 가능합니다."
+            detail=f"{plan} 플랜 검색 {limit}회를 모두 사용했습니다."
         )
 
     posts = db.get_posts(blog_id)
@@ -90,13 +92,13 @@ async def search(req: SearchRequest):
     db.increment_search(session_id, blog_id)
 
     count_after = count + 1
-    remaining = max(0, db.FREE_LIMIT - count_after) if not is_paid else None
+    remaining = max(0, limit - count_after)
 
     return {
         "ok": True,
         "results": results,
         "remaining": remaining,
-        "is_paid": is_paid,
+        "plan": plan,
     }
 
 
