@@ -124,6 +124,36 @@ async def search(req: SearchRequest, request: Request):
     }
 
 
+@app.get("/api/admin/stats")
+def admin_stats():
+    with db.get_conn() as conn:
+        total_sessions = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        total_searches = conn.execute("SELECT SUM(search_count) FROM users").fetchone()[0] or 0
+        total_blogs    = conn.execute("SELECT COUNT(*) FROM blogs").fetchone()[0]
+        total_posts    = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
+        top_ips        = conn.execute(
+            "SELECT ip, search_count FROM ip_searches ORDER BY search_count DESC LIMIT 10"
+        ).fetchall()
+        top_blogs      = conn.execute(
+            "SELECT blog_id, post_count, indexed_at FROM blogs ORDER BY indexed_at DESC LIMIT 10"
+        ).fetchall()
+        top_users      = conn.execute(
+            "SELECT session_id, search_count, plan, created_at FROM users ORDER BY search_count DESC LIMIT 10"
+        ).fetchall()
+
+    return {
+        "summary": {
+            "총_세션수": total_sessions,
+            "총_검색횟수": total_searches,
+            "등록_블로그수": total_blogs,
+            "총_포스트수": total_posts,
+        },
+        "top_ip_사용자": [{"ip": r["ip"], "검색수": r["search_count"]} for r in top_ips],
+        "최근_블로그": [{"blog_id": r["blog_id"], "글수": r["post_count"], "등록일": r["indexed_at"]} for r in top_blogs],
+        "top_유저": [{"session": r["session_id"][:8]+"...", "검색수": r["search_count"], "플랜": r["plan"], "가입일": r["created_at"]} for r in top_users],
+    }
+
+
 @app.get("/api/debug")
 def debug_env():
     key = os.environ.get("ANTHROPIC_API_KEY", "")
