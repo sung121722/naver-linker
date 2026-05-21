@@ -22,6 +22,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class IndexRequest(BaseModel):
     blog_id: str
+    force: bool = False
 
 class SearchRequest(BaseModel):
     blog_id: str
@@ -48,7 +49,7 @@ def parse_blog_id(raw: str) -> str:
 async def index_blog(req: IndexRequest):
     blog_id = parse_blog_id(req.blog_id)
     existing = db.get_blog(blog_id)
-    if existing:
+    if existing and not req.force:
         return {
             "ok": True,
             "blog_id": blog_id,

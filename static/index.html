@@ -108,6 +108,7 @@
   <section class="card" id="step2" style="display:none">
     <h2>② 새 글 키워드 입력
       <span class="badge badge-green" id="blogBadge"></span>
+      <button class="btn-gray" onclick="reindexBlog()" style="font-size:12px;padding:4px 10px;margin-left:8px;">글 목록 업데이트</button>
     </h2>
     <div class="input-row">
       <input type="text" id="keyword" placeholder="새 글 주제나 키워드 (예: 허리 통증)" onkeydown="if(event.key==='Enter') search()" />
@@ -203,6 +204,26 @@ async function indexBlog() {
     : `등록 완료! ${data.post_count}개 글을 불러왔습니다`;
   showStatus('indexStatus', msg, 'ok');
   showStep2(data.blog_id, data.post_count);
+}
+
+async function reindexBlog() {
+  if (!currentBlogId) return;
+  showStatus('indexStatus', '새 글 목록 다시 불러오는 중...', 'info');
+  document.getElementById('step1').style.display = 'block';
+
+  const res = await fetch('/api/index', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({blog_id: currentBlogId, force: true})
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    showStatus('indexStatus', data.detail || '오류가 발생했습니다', 'err');
+    return;
+  }
+  showStatus('indexStatus', `업데이트 완료! ${data.post_count}개 글`, 'ok');
+  document.getElementById('blogBadge').textContent = `${currentBlogId} · ${data.post_count}개 글`;
 }
 
 async function search() {
