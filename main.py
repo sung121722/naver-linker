@@ -106,9 +106,9 @@ async def search(req: SearchRequest, request: Request):
     db.increment_search(session_id, blog_id)
     if plan == "free":
         db.increment_ip_search(client_ip)
-
-    count_after = count + 1
-    remaining = max(0, limit - count_after)
+        remaining = max(0, limit - (ip_count + 1))  # IP 일일 카운트 기준
+    else:
+        remaining = max(0, limit - (count + 1))  # 유료: 세션 누적 기준
 
     return {
         "ok": True,
