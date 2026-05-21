@@ -66,7 +66,7 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1024,
+        max_tokens=4096,
         tools=tools,
         tool_choice={"type": "any"},  # 반드시 tool 사용 강제
         messages=[{"role": "user", "content": prompt}],
