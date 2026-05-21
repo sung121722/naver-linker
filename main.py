@@ -79,24 +79,18 @@ async def search(req: SearchRequest, request: Request):
     session_id = req.session_id
     client_ip = get_client_ip(request)
 
-    # 세션 기반 체크
     count, plan = db.get_search_count(session_id)
     limit = db.get_limit(plan)
 
-    # IP 기반 체크 (무료 플랜만 적용)
     if plan == "free":
+        # 무료 플랜: IP 기반 일일 제한만 체크 (매일 초기화)
         ip_count = db.get_ip_search_count(client_ip)
         if ip_count >= limit:
-            raise HTTPException(
-                status_code=402,
-                detail="무료 체험이 끝났습니다."
-            )
-
-    if count >= limit:
-        raise HTTPException(
-            status_code=402,
-            detail="무료 체험이 끝났습니다."
-        )
+            raise HTTPException(status_code=402, detail="무료 체험이 끝났습니다.")
+    else:
+        # 유료 플랜: 세션 기반 누적 횟수 체크
+        if count >= limit:
+            raise HTTPException(status_code=402, detail="이용 한도를 초과했습니다.")
 
     posts = db.get_posts(blog_id)
     if not posts:
