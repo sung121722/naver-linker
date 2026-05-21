@@ -249,7 +249,7 @@ function renderResults(results, remaining) {
   `).join('');
 
   document.getElementById('remainingMsg').textContent =
-    remaining !== null ? `무료 검색 잔여: ${remaining}회` : '';
+    remaining !== null ? `오늘 무료 검색 잔여: ${remaining}회 (매일 초기화)` : '';
   document.getElementById('results').style.display = 'block';
 }
 

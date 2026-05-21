@@ -1,4 +1,5 @@
 import os
+from datetime import date
 import psycopg2
 import psycopg2.extras
 
@@ -55,9 +56,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS ip_searches (
             ip           TEXT PRIMARY KEY,
             search_count INTEGER DEFAULT 0,
+            reset_date   TEXT DEFAULT '',
             created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    try:
+        cur.execute("ALTER TABLE ip_searches ADD COLUMN IF NOT EXISTS reset_date TEXT DEFAULT ''")
+    except Exception:
+        conn.rollback()
     try:
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free'")
     except Exception:
@@ -86,22 +92,34 @@ def get_limit(plan: str) -> int:
 
 
 def get_ip_search_count(ip: str) -> int:
+    today = date.today().isoformat()
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT search_count FROM ip_searches WHERE ip = %s", (ip,))
+    cur.execute("SELECT search_count, reset_date FROM ip_searches WHERE ip = %s", (ip,))
     row = cur.fetchone()
     conn.close()
-    return row["search_count"] if row else 0
+    if not row:
+        return 0
+    # 날짜가 바뀌면 0으로 초기화
+    if row["reset_date"] != today:
+        return 0
+    return row["search_count"]
 
 
 def increment_ip_search(ip: str):
+    today = date.today().isoformat()
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO ip_searches (ip, search_count)
-        VALUES (%s, 1)
-        ON CONFLICT (ip) DO UPDATE SET search_count = ip_searches.search_count + 1
-    """, (ip,))
+        INSERT INTO ip_searches (ip, search_count, reset_date)
+        VALUES (%s, 1, %s)
+        ON CONFLICT (ip) DO UPDATE SET
+            search_count = CASE
+                WHEN ip_searches.reset_date = %s THEN ip_searches.search_count + 1
+                ELSE 1
+            END,
+            reset_date = %s
+    """, (ip, today, today, today))
     conn.commit()
     conn.close()
 
