@@ -30,12 +30,10 @@ class SearchRequest(BaseModel):
     session_id: str
     top_n: int = 5
 
-class BacklinkRequest(BaseModel):
+class DuplicateRequest(BaseModel):
     blog_id: str
-    new_title: str
-    new_url: str
+    keyword: str
     session_id: str
-    top_n: int = 5
 
 
 # ── API ─────────────────────────────────────────────────
@@ -126,8 +124,8 @@ async def search(req: SearchRequest, request: Request):
     }
 
 
-@app.post("/api/backlink")
-async def backlink(req: BacklinkRequest, request: Request):
+@app.post("/api/duplicate")
+async def duplicate(req: DuplicateRequest, request: Request):
     blog_id = req.blog_id.strip().lower()
     session_id = req.session_id
     client_ip = get_client_ip(request)
@@ -147,11 +145,10 @@ async def backlink(req: BacklinkRequest, request: Request):
     if not posts:
         raise HTTPException(status_code=404, detail="먼저 블로그를 등록해주세요.")
 
-    top_n = max(1, min(req.top_n, 20))
     loop = asyncio.get_running_loop()
     try:
-        results = await loop.run_in_executor(
-            None, matcher.find_backlink_targets, posts, req.new_title, req.new_url, top_n
+        result = await loop.run_in_executor(
+            None, matcher.find_duplicates, posts, req.keyword
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"분석 오류: {str(e)}")
@@ -163,7 +160,7 @@ async def backlink(req: BacklinkRequest, request: Request):
     else:
         remaining = max(0, limit - (count + 1))
 
-    return {"ok": True, "results": results, "remaining": remaining, "plan": plan}
+    return {"ok": True, **result, "remaining": remaining, "plan": plan}
 
 
 @app.get("/api/admin/stats")

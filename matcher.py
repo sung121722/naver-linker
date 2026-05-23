@@ -79,8 +79,8 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
     return []
 
 
-def find_backlink_targets(posts: list, new_title: str, new_url: str, top_n: int = 5) -> list:
-    """새 글을 발행했을 때, 기존 글 중 어디에 새 글 링크를 추가하면 좋을지 추천"""
+def find_duplicates(posts: list, keyword: str) -> dict:
+    """새 글 키워드와 유사한 기존 글을 찾아 중복 여부 판단"""
     client = _get_client()
     post_list = "\n".join(
         f"{i+1}. {p['title']} | {p['url']}" for i, p in enumerate(posts)
@@ -90,49 +90,58 @@ def find_backlink_targets(posts: list, new_title: str, new_url: str, top_n: int 
 
 {post_list}
 
-방금 새로 발행한 글:
-- 제목: "{new_title}"
-- URL: {new_url}
+새로 쓰려는 글의 키워드/주제: "{keyword}"
 
-위 기존 글 목록 중에서, 본문에 새 글 링크를 추가하면 독자에게 도움이 되고 SEO에도 좋을 글을 {top_n}개 골라주세요.
-(새 글의 내용을 자연스럽게 언급하거나 연결할 수 있는 기존 글을 선택하세요)"""
+위 기존 글 중에서 새 글과 주제가 겹치거나 비슷한 글을 찾아주세요.
+유사도가 높은 순서대로 최대 5개까지만 반환하세요.
+유사한 글이 전혀 없으면 빈 배열을 반환하세요."""
 
     tools = [
         {
-            "name": "recommend_backlink_targets",
-            "description": "새 글 링크를 추가하면 좋을 기존 글 목록을 반환합니다",
+            "name": "check_duplicates",
+            "description": "새 글과 유사한 기존 글 목록을 반환합니다",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "recommendations": {
+                    "has_duplicate": {
+                        "type": "boolean",
+                        "description": "유사한 글이 1개 이상 존재하면 true"
+                    },
+                    "similar_posts": {
                         "type": "array",
-                        "description": f"새 글 링크를 추가하면 좋을 기존 글 {top_n}개",
+                        "description": "유사도 높은 기존 글 목록 (최대 5개, 없으면 빈 배열)",
                         "items": {
                             "type": "object",
                             "properties": {
                                 "title": {"type": "string", "description": "기존 글 제목"},
                                 "url": {"type": "string", "description": "기존 글 URL"},
-                                "reason": {"type": "string", "description": "이 글에 새 글 링크를 추가해야 하는 이유"}
+                                "similarity": {
+                                    "type": "integer",
+                                    "description": "유사도 (0~100 사이 정수)",
+                                    "minimum": 0,
+                                    "maximum": 100
+                                },
+                                "overlap": {"type": "string", "description": "겹치는 내용 한 줄 요약"}
                             },
-                            "required": ["title", "url", "reason"]
+                            "required": ["title", "url", "similarity", "overlap"]
                         }
                     }
                 },
-                "required": ["recommendations"]
+                "required": ["has_duplicate", "similar_posts"]
             }
         }
     ]
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4096,
+        max_tokens=2048,
         tools=tools,
         tool_choice={"type": "any"},
         messages=[{"role": "user", "content": prompt}],
     )
 
     for block in response.content:
-        if block.type == "tool_use" and block.name == "recommend_backlink_targets":
-            return block.input.get("recommendations", [])
+        if block.type == "tool_use" and block.name == "check_duplicates":
+            return block.input
 
-    return []
+    return {"has_duplicate": False, "similar_posts": []}
