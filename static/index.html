@@ -156,6 +156,33 @@
     <div class="remaining" id="remainingMsg"></div>
   </section>
 
+  <!-- Step 3: 역방향 링크 -->
+  <section class="card" id="step3" style="display:none">
+    <h2>③ 새 글 발행 후 — 기존 글 업데이트
+      <span style="font-size:12px;color:#888;font-weight:400;margin-left:6px">새 글을 링크해야 할 기존 글 찾기</span>
+    </h2>
+    <div class="input-row" style="margin-bottom:8px">
+      <input type="text" id="newTitle" placeholder="새 글 제목 (예: 허리 통증 완화 스트레칭 5가지)" />
+    </div>
+    <div class="input-row">
+      <input type="text" id="newUrl" placeholder="새 글 URL (예: https://blog.naver.com/...)" />
+      <select id="backlinkTopN" style="padding:10px 8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;background:white;cursor:pointer;">
+        <option value="5">5개</option>
+        <option value="10">10개</option>
+        <option value="15">15개</option>
+        <option value="20">20개</option>
+      </select>
+      <button class="btn-primary" onclick="findBacklinks()">찾기</button>
+    </div>
+    <div class="spinner" id="backlinkSpinner">기존 글 분석 중...</div>
+  </section>
+
+  <!-- 역방향 링크 결과 -->
+  <section id="backlinkResults" style="display:none">
+    <div id="backlinkList"></div>
+    <div class="remaining" id="backlinkRemainingMsg"></div>
+  </section>
+
   <!-- 결제 유도 -->
   <div class="paywall" id="paywall">
     <h3>무료 체험이 끝났습니다</h3>
@@ -202,6 +229,7 @@ function showStatus(id, msg, type) {
 
 function showStep2(blogId, postCount) {
   document.getElementById('step2').style.display = 'block';
+  document.getElementById('step3').style.display = 'block';
   document.getElementById('blogBadge').textContent = `${blogId} · ${postCount}개 글`;
   currentBlogId = blogId;
   localStorage.setItem('blog_id', blogId);
@@ -314,6 +342,63 @@ function copyUrl(btn, url) {
   btn.textContent = '복사됨!';
   btn.classList.add('copied');
   setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('copied'); }, 1500);
+}
+
+async function findBacklinks() {
+  const newTitle = document.getElementById('newTitle').value.trim();
+  const newUrl   = document.getElementById('newUrl').value.trim();
+  if (!newTitle || !newUrl || !currentBlogId) {
+    alert('새 글 제목과 URL을 모두 입력해주세요.');
+    return;
+  }
+
+  document.getElementById('backlinkSpinner').style.display = 'block';
+  document.getElementById('backlinkResults').style.display = 'none';
+  document.getElementById('paywall').style.display = 'none';
+
+  const res = await fetch('/api/backlink', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      blog_id: currentBlogId,
+      new_title: newTitle,
+      new_url: newUrl,
+      session_id: sessionId,
+      top_n: parseInt(document.getElementById('backlinkTopN').value)
+    })
+  });
+  const data = await res.json();
+  document.getElementById('backlinkSpinner').style.display = 'none';
+
+  if (res.status === 402) {
+    document.getElementById('paywall').style.display = 'block';
+    return;
+  }
+  if (!res.ok) {
+    alert(`오류 (${res.status}): ${data.detail || JSON.stringify(data)}`);
+    return;
+  }
+
+  const list = document.getElementById('backlinkList');
+  list.innerHTML = `
+    <div style="font-size:13px;color:#888;margin-bottom:12px">
+      📌 아래 기존 글에 <strong style="color:#1a1a2e">"${newTitle}"</strong> 링크를 추가하세요
+    </div>
+  ` + data.results.map((r, i) => `
+    <div class="result-item">
+      <div class="result-num">${i + 1}번째 기존 글</div>
+      <div class="result-title">${r.title}</div>
+      <div>
+        <span class="result-url" onclick="window.open('${r.url}')">${r.url}</span>
+        <button class="copy-btn" onclick="copyUrl(this, '${r.url}')">복사</button>
+      </div>
+      <div class="result-reason">✏️ ${r.reason}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('backlinkRemainingMsg').textContent =
+    data.remaining !== null ? `오늘 무료 검색 잔여: ${data.remaining}회 (매일 초기화)` : '';
+  document.getElementById('backlinkResults').style.display = 'block';
 }
 
 initSession();
