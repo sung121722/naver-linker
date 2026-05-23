@@ -377,7 +377,7 @@ async function checkDuplicate() {
       return `
       <div class="result-item">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <div class="result-num">${i + 1}번째 유사 글</div>
+          <div class="result-num">${i + 1}번째 유사 글${p.date ? ` · ${p.date}` : ''}</div>
           <div style="font-size:13px;font-weight:700;color:${color}">유사도 ${p.similarity}%</div>
         </div>
         <div class="result-title">${p.title}</div>

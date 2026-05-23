@@ -83,10 +83,10 @@ def find_duplicates(posts: list, keyword: str) -> dict:
     """새 글 키워드와 유사한 기존 글을 찾아 중복 여부 판단"""
     client = _get_client()
     post_list = "\n".join(
-        f"{i+1}. {p['title']} | {p['url']}" for i, p in enumerate(posts)
+        f"{i+1}. {p['title']} | {p['url']} | {p.get('date','날짜미상')}" for i, p in enumerate(posts)
     )
 
-    prompt = f"""아래는 네이버 블로그의 기존 글 목록입니다 (번호. 제목 | URL 형식):
+    prompt = f"""아래는 네이버 블로그의 기존 글 목록입니다 (번호. 제목 | URL | 작성일 형식):
 
 {post_list}
 
@@ -115,6 +115,7 @@ def find_duplicates(posts: list, keyword: str) -> dict:
                             "properties": {
                                 "title": {"type": "string", "description": "기존 글 제목"},
                                 "url": {"type": "string", "description": "기존 글 URL"},
+                                "date": {"type": "string", "description": "기존 글 작성일 (원문 그대로)"},
                                 "similarity": {
                                     "type": "integer",
                                     "description": "유사도 (0~100 사이 정수)",
@@ -123,7 +124,7 @@ def find_duplicates(posts: list, keyword: str) -> dict:
                                 },
                                 "overlap": {"type": "string", "description": "겹치는 내용 한 줄 요약"}
                             },
-                            "required": ["title", "url", "similarity", "overlap"]
+                            "required": ["title", "url", "date", "similarity", "overlap"]
                         }
                     }
                 },
