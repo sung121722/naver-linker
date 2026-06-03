@@ -73,6 +73,13 @@ function checkWriteMode() {
 async function insertLinkToEditor(url, title) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tabId = tabs[0]?.id;
+  const url_ = tabs[0]?.url || "";
+  const onWritePage = url_.includes("PostWriteForm.naver") || url_.includes("Redirect=Write");
+
+  if (!onWritePage) {
+    showToast("✍️ 네이버 글쓰기 페이지에서만 사용 가능합니다");
+    return;
+  }
   if (!tabId) return;
 
   try {
@@ -183,10 +190,6 @@ searchBtn.addEventListener("click", async () => {
     saveState();
     updateLimitBar();
 
-    // 렌더링 직전 글쓰기 페이지 여부 재확인
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    isWritePage = (tabs[0]?.url || "").includes("PostWriteForm.naver") || (tabs[0]?.url || "").includes("Redirect=Write");
-
     renderSearchResults(res.results || []);
   } catch (e) {
     const msg = e.message.includes("402")
@@ -211,9 +214,7 @@ function renderSearchResults(results) {
     const score = r.score || 0;
     const badgeClass = score >= 70 ? "badge-high" : "badge-med";
     const badgeLabel = score >= 70 ? "연관 높음" : "연관 있음";
-    const insertBtn = isWritePage
-      ? `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}">📎 삽입</button>`
-      : "";
+    const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}">📎 삽입</button>`;
     return `
       <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
         <div class="title">
