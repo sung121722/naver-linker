@@ -154,7 +154,9 @@ def save_posts(blog_id: str, posts: list):
     cur.executemany("""
         INSERT INTO posts (blog_id, title, url, date)
         VALUES (%s, %s, %s, %s)
-        ON CONFLICT (blog_id, url) DO NOTHING
+        ON CONFLICT (blog_id, url) DO UPDATE SET
+            title = EXCLUDED.title,
+            date  = EXCLUDED.date
     """, [(blog_id, p["title"], p["url"], p.get("date", "")) for p in posts])
     cur.execute("""
         INSERT INTO blogs (blog_id, post_count, indexed_at)

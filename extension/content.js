@@ -71,25 +71,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true;
     }
 
-    const range = sel.getRangeAt(0);
+    // execCommand 방식 — Smart Editor 내부 상태와 호환
+    const linkText = msg.selectedText || msg.title;
+    const html = `<a href="${msg.url}" target="_blank">${linkText}</a>`;
+    const inserted = iframeDoc.execCommand("insertHTML", false, html);
 
-    // <a> 태그 생성
-    const a = iframeDoc.createElement("a");
-    a.href = msg.url;
-    a.textContent = msg.selectedText || msg.title;
-
-    // 선택된 텍스트 대체 or 커서 위치에 삽입
-    range.deleteContents();
-    range.insertNode(a);
-
-    // 커서를 링크 뒤로 이동
-    const newRange = iframeDoc.createRange();
-    newRange.setStartAfter(a);
-    newRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(newRange);
-
-    sendResponse({ ok: true });
+    if (inserted) {
+      sendResponse({ ok: true });
+    } else {
+      sendResponse({ ok: false, error: "execCommand 실패 — 에디터를 클릭 후 다시 시도하세요" });
+    }
   } catch (e) {
     sendResponse({ ok: false, error: e.message });
   }
