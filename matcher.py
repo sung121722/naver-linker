@@ -79,7 +79,7 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
     return []
 
 
-def find_duplicates(posts: list, keyword: str) -> dict:
+def find_duplicates(posts: list, keyword: str, top_n: int = 10) -> dict:
     """새 글 키워드와 유사한 기존 글을 찾아 중복 여부 판단"""
     client = _get_client()
     post_list = "\n".join(
@@ -93,7 +93,7 @@ def find_duplicates(posts: list, keyword: str) -> dict:
 새로 쓰려는 글의 키워드/주제: "{keyword}"
 
 위 기존 글 중에서 새 글과 주제가 겹치거나 비슷한 글을 찾아주세요.
-유사도가 높은 순서대로 최대 5개까지만 반환하세요.
+유사도가 높은 순서대로 최대 {top_n}개까지만 반환하세요.
 유사한 글이 전혀 없으면 빈 배열을 반환하세요."""
 
     tools = [

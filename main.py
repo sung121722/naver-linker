@@ -48,6 +48,7 @@ class DuplicateRequest(BaseModel):
     blog_id: str
     keyword: str
     session_id: str
+    top_n: int = 10
 
 
 # ── API ─────────────────────────────────────────────────
@@ -190,8 +191,9 @@ async def duplicate(req: DuplicateRequest, request: Request):
 
     loop = asyncio.get_running_loop()
     try:
+        top_n = max(1, min(req.top_n, 20))
         result = await loop.run_in_executor(
-            None, matcher.find_duplicates, posts, req.keyword
+            None, matcher.find_duplicates, posts, req.keyword, top_n
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"분석 오류: {str(e)}")

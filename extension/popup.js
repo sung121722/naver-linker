@@ -159,7 +159,7 @@ dupBtn.addEventListener("click", async () => {
     });
     if (!res.ok) throw new Error(res.error);
 
-    renderDupResults(res.results || []);
+    renderDupResults(res.similar_posts || []);
   } catch (e) {
     dupResults.innerHTML = `<div class="empty">❌ ${e.message}</div>`;
   } finally {
