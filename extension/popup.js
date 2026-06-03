@@ -179,10 +179,13 @@ searchBtn.addEventListener("click", async () => {
     if (!res.ok) throw new Error(res.error);
 
     state.dailyLimit = res.daily_limit || state.dailyLimit;
-    // 남은 횟수로 역산하여 실제 사용량 표시 (IP 기준)
     state.searchCount = state.dailyLimit - (res.remaining ?? 0);
     saveState();
     updateLimitBar();
+
+    // 렌더링 직전 글쓰기 페이지 여부 재확인
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    isWritePage = (tabs[0]?.url || "").includes("PostWriteForm.naver") || (tabs[0]?.url || "").includes("Redirect=Write");
 
     renderSearchResults(res.results || []);
   } catch (e) {
@@ -218,7 +221,7 @@ function renderSearchResults(results) {
           <span class="badge ${badgeClass}">${badgeLabel}</span>
         </div>
         <div class="meta-row">
-          <span class="meta-date">${r.date || ""}</span>
+          <span class="meta-date">${r.date ? "📅 " + r.date : ""}</span>
           <div class="action-btns">
             ${insertBtn}
             <button class="copy-btn" data-url="${r.url}">🔗 복사</button>

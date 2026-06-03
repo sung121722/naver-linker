@@ -153,9 +153,12 @@ async def search(req: SearchRequest, request: Request):
     db.increment_search(session_id, blog_id)
     if plan == "free":
         db.increment_ip_search(client_ip)
-        remaining = max(0, limit - (ip_count + 1))  # IP 일일 카운트 기준
+        remaining = max(0, limit - (ip_count + 1))
     else:
-        remaining = max(0, limit - (count + 1))  # 유료: 세션 누적 기준
+        remaining = max(0, limit - (count + 1))
+
+    # 최신순 정렬 (YYYY.MM.DD 형식은 문자열 역순으로 정렬 가능)
+    results.sort(key=lambda r: r.get("date", "") or "", reverse=True)
 
     new_count = count + 1
     return {
