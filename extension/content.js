@@ -28,7 +28,6 @@ function attachSelectionListener(iframe) {
   } catch (_) {}
 }
 
-// 에디터가 로드될 때까지 대기
 function waitForEditor(attempt = 0) {
   const iframe = findEditorIframe();
   if (iframe) {
@@ -45,64 +44,57 @@ waitForEditor();
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "INSERT_LINK") return;
 
-  try {
-    const iframe = editorIframe || findEditorIframe();
-    if (!iframe) {
-      sendResponse({ ok: false, error: "에디터를 찾을 수 없습니다" });
-      return true;
+  (async () => {
+    try {
+      const iframe = editorIframe || findEditorIframe();
+      if (!iframe) {
+        sendResponse({ ok: false, error: "에디터를 찾을 수 없습니다" });
+        return;
+      }
+
+      const iframeDoc = iframe.contentDocument;
+      const iframeWin = iframe.contentWindow;
+      const editableEl = iframeDoc.querySelector("[contenteditable='true']") || iframeDoc.body;
+
+      // 포커스 복원 후 타이밍 대기
+      editableEl.focus();
+      await new Promise(r => setTimeout(r, 80));
+
+      const sel = iframeWin.getSelection();
+
+      // 커서 위치 복원
+      if (savedRange) {
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      }
+
+      if (!sel || sel.rangeCount === 0) {
+        sendResponse({ ok: false, error: "에디터를 클릭해 커서를 위치시킨 후 다시 시도하세요" });
+        return;
+      }
+
+      const linkText = msg.selectedText || msg.title;
+      const html = `<a href="${msg.url}" target="_blank">${linkText}</a>`;
+
+      // execCommand 우선 시도
+      const inserted = iframeDoc.execCommand("insertHTML", false, html);
+
+      if (!inserted) {
+        // 폴백: paste 이벤트 (text/html만)
+        const clipboardData = new DataTransfer();
+        clipboardData.setData("text/html", html);
+        editableEl.dispatchEvent(new ClipboardEvent("paste", {
+          clipboardData,
+          bubbles: true,
+          cancelable: true,
+        }));
+      }
+
+      sendResponse({ ok: true });
+    } catch (e) {
+      sendResponse({ ok: false, error: e.message });
     }
-
-    const iframeDoc = iframe.contentDocument;
-    const iframeWin = iframe.contentWindow;
-
-    // 에디터 포커스 복원
-    iframeWin.focus();
-
-    const sel = iframeWin.getSelection();
-
-    // 저장된 커서 위치 복원
-    if (savedRange) {
-      sel.removeAllRanges();
-      sel.addRange(savedRange);
-    }
-
-    if (!sel || sel.rangeCount === 0) {
-      sendResponse({ ok: false, error: "에디터 커서 위치를 찾을 수 없습니다\n에디터를 한 번 클릭 후 다시 시도하세요" });
-      return true;
-    }
-
-    // Smart Editor는 paste 이벤트로 내용을 처리함
-    const linkText = msg.selectedText || msg.title;
-    const html = `<a href="${msg.url}" target="_blank">${linkText}</a>`;
-
-    const editableEl = iframeDoc.querySelector("[contenteditable='true']") || iframeDoc.body;
-    editableEl.focus();
-
-    // 저장된 커서 위치 복원
-    if (savedRange) {
-      sel.removeAllRanges();
-      sel.addRange(savedRange);
-    }
-
-    // execCommand 방식 우선 시도
-    const inserted = iframeDoc.execCommand("insertHTML", false, html);
-
-    if (!inserted) {
-      // 폴백: paste 이벤트 (text/html만, plain 제거)
-      const clipboardData = new DataTransfer();
-      clipboardData.setData("text/html", html);
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData,
-        bubbles: true,
-        cancelable: true,
-      });
-      editableEl.dispatchEvent(pasteEvent);
-    }
-
-    sendResponse({ ok: true });
-  } catch (e) {
-    sendResponse({ ok: false, error: e.message });
-  }
+  })();
 
   return true;
 });
