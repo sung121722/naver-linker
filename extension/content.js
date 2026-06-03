@@ -84,18 +84,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       sel.addRange(savedRange);
     }
 
-    // ClipboardEvent로 paste 디스패치
-    const clipboardData = new DataTransfer();
-    clipboardData.setData("text/html", html);
-    clipboardData.setData("text/plain", linkText);
+    // execCommand 방식 우선 시도
+    const inserted = iframeDoc.execCommand("insertHTML", false, html);
 
-    const pasteEvent = new ClipboardEvent("paste", {
-      clipboardData,
-      bubbles: true,
-      cancelable: true,
-    });
+    if (!inserted) {
+      // 폴백: paste 이벤트 (text/html만, plain 제거)
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/html", html);
+      const pasteEvent = new ClipboardEvent("paste", {
+        clipboardData,
+        bubbles: true,
+        cancelable: true,
+      });
+      editableEl.dispatchEvent(pasteEvent);
+    }
 
-    editableEl.dispatchEvent(pasteEvent);
     sendResponse({ ok: true });
   } catch (e) {
     sendResponse({ ok: false, error: e.message });
