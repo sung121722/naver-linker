@@ -71,16 +71,32 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return true;
     }
 
-    // execCommand 방식 — Smart Editor 내부 상태와 호환
+    // Smart Editor는 paste 이벤트로 내용을 처리함
     const linkText = msg.selectedText || msg.title;
     const html = `<a href="${msg.url}" target="_blank">${linkText}</a>`;
-    const inserted = iframeDoc.execCommand("insertHTML", false, html);
 
-    if (inserted) {
-      sendResponse({ ok: true });
-    } else {
-      sendResponse({ ok: false, error: "execCommand 실패 — 에디터를 클릭 후 다시 시도하세요" });
+    const editableEl = iframeDoc.querySelector("[contenteditable='true']") || iframeDoc.body;
+    editableEl.focus();
+
+    // 저장된 커서 위치 복원
+    if (savedRange) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
     }
+
+    // ClipboardEvent로 paste 디스패치
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/html", html);
+    clipboardData.setData("text/plain", linkText);
+
+    const pasteEvent = new ClipboardEvent("paste", {
+      clipboardData,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    editableEl.dispatchEvent(pasteEvent);
+    sendResponse({ ok: true });
   } catch (e) {
     sendResponse({ ok: false, error: e.message });
   }
