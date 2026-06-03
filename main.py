@@ -209,6 +209,17 @@ async def duplicate(req: DuplicateRequest, request: Request):
     return {"ok": True, **result, "remaining": remaining, "plan": plan, "search_count": new_count, "daily_limit": limit}
 
 
+@app.get("/api/admin/reset-ip")
+def reset_ip(request: Request):
+    client_ip = get_client_ip(request)
+    conn = db.get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM ip_searches WHERE ip = %s", (client_ip,))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "reset_ip": client_ip}
+
+
 @app.get("/api/admin/stats")
 def admin_stats():
     conn = db.get_conn()

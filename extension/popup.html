@@ -8,8 +8,8 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      width: 380px;
-      min-height: 500px;
+      width: 100%;
+      min-height: 100vh;
       font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
       font-size: 14px;
       background: #f8f9fa;
@@ -159,6 +159,50 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .topn-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .topn-label { font-size: 11px; color: #868e96; }
+    .topn-btns { display: flex; gap: 4px; }
+    .topn-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      background: white;
+      color: #495057;
+      cursor: pointer;
+    }
+    .topn-btn.active {
+      background: #03C75A;
+      color: white;
+      border-color: #03C75A;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 3px;
+    }
+    .meta-date { font-size: 11px; color: #868e96; }
+    .action-btns { display: flex; gap: 4px; }
+    .insert-btn, .copy-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .insert-btn { background: #03C75A; color: white; }
+    .insert-btn:hover { background: #02a84c; }
+    .copy-btn { background: #e9ecef; color: #495057; }
+    .copy-btn:hover { background: #dee2e6; }
+
     .copy-toast {
       position: fixed;
       bottom: 12px; left: 50%;
@@ -194,6 +238,7 @@
   <div class="blog-status" id="blogStatus"></div>
 </div>
 
+
 <!-- 기능 탭 -->
 <div class="section" id="featureSection" style="display:none;">
   <div class="tabs">
@@ -206,6 +251,14 @@
     <div class="input-row">
       <input type="text" id="searchKeyword" placeholder="새 글 키워드 입력" />
       <button id="searchBtn">검색</button>
+    </div>
+    <div class="topn-row">
+      <span class="topn-label">결과 수</span>
+      <div class="topn-btns">
+        <button class="topn-btn active" data-n="5">5개</button>
+        <button class="topn-btn" data-n="10">10개</button>
+        <button class="topn-btn" data-n="20">20개</button>
+      </div>
     </div>
     <div class="limit-bar" id="limitBar" style="display:none;">
       오늘 사용: <span id="usedCount">0</span> / <span id="limitCount">5</span>회

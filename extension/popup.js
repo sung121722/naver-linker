@@ -26,6 +26,71 @@ const dupBtn = document.getElementById("dupBtn");
 const dupResults = document.getElementById("dupResults");
 const copyToast = document.getElementById("copyToast");
 
+// 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "AUTO_SUGGEST") {
+    showAutoSuggest(msg.keyword, msg.results);
+  }
+});
+
+function showAutoSuggest(keyword, results) {
+  // 기능 탭이 없으면 무시
+  if (featureSection.style.display === "none") return;
+
+  // 관련 글 탭으로 자동 전환
+  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  document.querySelector('[data-tab="search"]').classList.add("active");
+  document.getElementById("tab-search").classList.add("active");
+
+  // 키워드 입력창에 표시
+  searchKeyword.value = keyword.length > 30 ? keyword.slice(0, 30) + "…" : keyword;
+
+  // 결과 표시
+  if (results.length) {
+    renderSearchResults(results);
+  } else {
+    searchResults.innerHTML = `<div class="empty">관련 글을 찾지 못했습니다.</div>`;
+  }
+
+  // 자동 분석 뱃지 표시
+  limitBar.style.display = "block";
+  usedCount.textContent = state.searchCount;
+  limitCount.textContent = state.dailyLimit;
+}
+
+let isWritePage = false;
+
+// 현재 탭이 글쓰기 페이지인지 확인
+function checkWriteMode() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const url = tabs[0]?.url || "";
+    isWritePage = url.includes("PostWriteForm.naver") || url.includes("Redirect=Write");
+  });
+}
+
+// 에디터에 링크 삽입
+async function insertLinkToEditor(url, title) {
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tabId = tabs[0]?.id;
+  if (!tabId) return;
+
+  try {
+    const resp = await chrome.tabs.sendMessage(tabId, {
+      type: "INSERT_LINK",
+      url,
+      title,
+    });
+    if (resp?.ok) {
+      showToast("✅ 에디터에 링크 삽입 완료!");
+    } else {
+      showToast("❌ " + (resp?.error || "삽입 실패"));
+    }
+  } catch (_) {
+    showToast("❌ 에디터에 연결할 수 없습니다");
+  }
+}
+
 // 초기화: 저장된 상태 복원
 chrome.storage.local.get(STORAGE_KEY, (data) => {
   if (data[STORAGE_KEY]) {
@@ -37,6 +102,7 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
       updateLimitBar();
     }
   }
+  checkWriteMode();
 });
 
 function saveState() {
@@ -84,6 +150,16 @@ indexBtn.addEventListener("click", async () => {
   }
 });
 
+// ── top_n 버튼 ───────────────────────────────────────────
+let selectedTopN = 5;
+document.querySelectorAll(".topn-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".topn-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedTopN = parseInt(btn.dataset.n);
+  });
+});
+
 // ── 관련 글 검색 ─────────────────────────────────────────
 searchBtn.addEventListener("click", async () => {
   const keyword = searchKeyword.value.trim();
@@ -98,17 +174,22 @@ searchBtn.addEventListener("click", async () => {
       sessionId: state.sessionId,
       blogId: state.blogId,
       keyword,
+      topN: selectedTopN,
     });
     if (!res.ok) throw new Error(res.error);
 
-    state.searchCount = res.search_count || state.searchCount + 1;
     state.dailyLimit = res.daily_limit || state.dailyLimit;
+    // 남은 횟수로 역산하여 실제 사용량 표시 (IP 기준)
+    state.searchCount = state.dailyLimit - (res.remaining ?? 0);
     saveState();
     updateLimitBar();
 
     renderSearchResults(res.results || []);
   } catch (e) {
-    searchResults.innerHTML = `<div class="empty">❌ ${e.message}</div>`;
+    const msg = e.message.includes("402")
+      ? "오늘 무료 사용 횟수(5회)를 모두 사용했습니다.<br>내일 자정에 초기화됩니다."
+      : e.message;
+    searchResults.innerHTML = `<div class="empty">❌ ${msg}</div>`;
   } finally {
     searchBtn.disabled = false;
   }
@@ -127,18 +208,36 @@ function renderSearchResults(results) {
     const score = r.score || 0;
     const badgeClass = score >= 70 ? "badge-high" : "badge-med";
     const badgeLabel = score >= 70 ? "연관 높음" : "연관 있음";
+    const insertBtn = isWritePage
+      ? `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}">📎 삽입</button>`
+      : "";
     return `
-      <div class="result-item" data-url="${r.url}">
+      <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
         <div class="title">
           ${escapeHtml(r.title)}
           <span class="badge ${badgeClass}">${badgeLabel}</span>
         </div>
-        <div class="meta">${r.date || ""} · 클릭하면 링크 복사</div>
+        <div class="meta-row">
+          <span class="meta-date">${r.date || ""}</span>
+          <div class="action-btns">
+            ${insertBtn}
+            <button class="copy-btn" data-url="${r.url}">🔗 복사</button>
+          </div>
+        </div>
       </div>`;
   }).join("");
 
-  document.querySelectorAll(".result-item").forEach((el) => {
-    el.addEventListener("click", () => copyLink(el.dataset.url));
+  document.querySelectorAll(".copy-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      copyLink(btn.dataset.url);
+    });
+  });
+  document.querySelectorAll(".insert-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      insertLinkToEditor(btn.dataset.url, btn.dataset.title);
+    });
   });
 }
 
@@ -238,9 +337,14 @@ function updateLimitBar() {
 
 function copyLink(url) {
   navigator.clipboard.writeText(url).then(() => {
-    copyToast.classList.add("show");
-    setTimeout(() => copyToast.classList.remove("show"), 1800);
+    showToast("링크 복사됨!");
   });
+}
+
+function showToast(msg) {
+  copyToast.textContent = msg;
+  copyToast.classList.add("show");
+  setTimeout(() => copyToast.classList.remove("show"), 2000);
 }
 
 function loadingHTML(msg) {

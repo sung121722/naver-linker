@@ -80,11 +80,11 @@ async function indexBlog(blogId, posts) {
 }
 
 // 관련 글 검색
-async function searchRelated(sessionId, blogId, keyword) {
+async function searchRelated(sessionId, blogId, keyword, topN = 5) {
   const resp = await fetch(`${SERVER_API}/api/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword }),
+    body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword, top_n: topN }),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
   return resp.json();
@@ -101,18 +101,43 @@ async function detectDuplicate(sessionId, blogId, keyword) {
   return resp.json();
 }
 
+// 아이콘 클릭 → 사이드 패널 열기
+chrome.action.onClicked.addListener((tab) => {
+  chrome.sidePanel.open({ tabId: tab.id });
+});
+
+// content.js에서 텍스트 선택 이벤트 수신 → 자동 검색 → Side Panel에 전달
+async function handleTextSelected(text) {
+  const stored = await chrome.storage.local.get("naver_linker_state");
+  const state = stored["naver_linker_state"];
+  if (!state?.sessionId || !state?.blogId) return; // 블로그 미등록 시 무시
+
+  try {
+    const result = await searchRelated(state.sessionId, state.blogId, text);
+    // Side Panel에 자동 추천 결과 브로드캐스트
+    chrome.runtime.sendMessage({
+      type: "AUTO_SUGGEST",
+      keyword: text,
+      results: result.results || [],
+    }).catch(() => {}); // Side Panel 닫혀있으면 무시
+  } catch (_) {}
+}
+
 // popup.js ↔ background.js 메시지 라우터
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     try {
-      if (msg.type === "FETCH_POSTS") {
+      if (msg.type === "TEXT_SELECTED") {
+        handleTextSelected(msg.text);
+        sendResponse({ ok: true });
+      } else if (msg.type === "FETCH_POSTS") {
         const posts = await fetchAllPosts(msg.blogId);
         sendResponse({ ok: true, posts });
       } else if (msg.type === "INDEX_BLOG") {
         const result = await indexBlog(msg.blogId, msg.posts);
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "SEARCH") {
-        const result = await searchRelated(msg.sessionId, msg.blogId, msg.keyword);
+        const result = await searchRelated(msg.sessionId, msg.blogId, msg.keyword, msg.topN);
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "DUPLICATE") {
         const result = await detectDuplicate(msg.sessionId, msg.blogId, msg.keyword);
