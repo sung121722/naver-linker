@@ -72,6 +72,18 @@ def init_db():
     conn.close()
 
 
+def ensure_user(session_id: str, blog_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO users (session_id, blog_id, plan, search_count)
+        VALUES (%s, %s, 'free', 0)
+        ON CONFLICT (session_id) DO NOTHING
+    """, (session_id, blog_id))
+    conn.commit()
+    conn.close()
+
+
 def get_search_count(session_id: str):
     conn = get_conn()
     cur = conn.cursor()

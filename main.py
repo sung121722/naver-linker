@@ -1,10 +1,10 @@
 import uuid
 import asyncio
 import os
-# force redeploy
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pathlib import Path
 
@@ -13,6 +13,13 @@ import indexer
 import matcher
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # chrome-extension:// origin 포함 허용
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 db.init_db()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -20,9 +27,16 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # ── Models ──────────────────────────────────────────────
 
+class PostItem(BaseModel):
+    title: str
+    url: str
+    date: str = ""
+
 class IndexRequest(BaseModel):
     blog_id: str
     force: bool = False
+    posts: list[PostItem] = []   # extension이 직접 수집해서 보낼 때
+    source: str = "web"          # "extension" | "web"
 
 class SearchRequest(BaseModel):
     blog_id: str
@@ -53,22 +67,48 @@ def parse_blog_id(raw: str) -> str:
 @app.post("/api/index")
 async def index_blog(req: IndexRequest):
     blog_id = parse_blog_id(req.blog_id)
-    existing = db.get_blog(blog_id)
-    if existing and not req.force:
-        return {
-            "ok": True,
-            "blog_id": blog_id,
-            "post_count": existing["post_count"],
-            "cached": True,
-        }
 
-    loop = asyncio.get_running_loop()
-    posts = await loop.run_in_executor(None, indexer.fetch_all_posts, blog_id)
-    if not posts:
-        raise HTTPException(status_code=404, detail="블로그를 찾을 수 없습니다. ID를 확인해주세요.")
+    if req.source == "extension" and req.posts:
+        # Extension 모드: 클라이언트가 수집한 posts를 그대로 저장
+        posts = [p.model_dump() for p in req.posts]
+        db.save_posts(blog_id, posts)
+    else:
+        # Web 모드: 서버에서 직접 크롤링 (기존 방식 유지)
+        existing = db.get_blog(blog_id)
+        if existing and not req.force:
+            session_id = str(uuid.uuid4())
+            db.ensure_user(session_id, blog_id)
+            count, plan = db.get_search_count(session_id)
+            return {
+                "ok": True,
+                "blog_id": blog_id,
+                "post_count": existing["post_count"],
+                "cached": True,
+                "session_id": session_id,
+                "plan": plan,
+                "search_count": count,
+                "daily_limit": db.get_limit(plan),
+            }
 
-    db.save_posts(blog_id, posts)
-    return {"ok": True, "blog_id": blog_id, "post_count": len(posts), "cached": False}
+        loop = asyncio.get_running_loop()
+        posts = await loop.run_in_executor(None, indexer.fetch_all_posts, blog_id)
+        if not posts:
+            raise HTTPException(status_code=404, detail="블로그를 찾을 수 없습니다. ID를 확인해주세요.")
+        db.save_posts(blog_id, posts)
+
+    session_id = str(uuid.uuid4())
+    db.ensure_user(session_id, blog_id)
+    count, plan = db.get_search_count(session_id)
+    return {
+        "ok": True,
+        "blog_id": blog_id,
+        "post_count": len(posts),
+        "cached": False,
+        "session_id": session_id,
+        "plan": plan,
+        "search_count": count,
+        "daily_limit": db.get_limit(plan),
+    }
 
 
 def get_client_ip(request: Request) -> str:
@@ -116,11 +156,14 @@ async def search(req: SearchRequest, request: Request):
     else:
         remaining = max(0, limit - (count + 1))  # 유료: 세션 누적 기준
 
+    new_count = count + 1
     return {
         "ok": True,
         "results": results,
         "remaining": remaining,
         "plan": plan,
+        "search_count": new_count,
+        "daily_limit": limit,
     }
 
 
@@ -160,7 +203,8 @@ async def duplicate(req: DuplicateRequest, request: Request):
     else:
         remaining = max(0, limit - (count + 1))
 
-    return {"ok": True, **result, "remaining": remaining, "plan": plan}
+    new_count = count + 1
+    return {"ok": True, **result, "remaining": remaining, "plan": plan, "search_count": new_count, "daily_limit": limit}
 
 
 @app.get("/api/admin/stats")
