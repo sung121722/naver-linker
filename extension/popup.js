@@ -64,42 +64,82 @@ function showAutoSuggest(keyword, results) {
   limitCount.textContent = state.dailyLimit;
 }
 
-let isWritePage = false;
 
-// 현재 탭이 글쓰기 페이지인지 확인
-function checkWriteMode() {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const url = tabs[0]?.url || "";
-    isWritePage = url.includes("PostWriteForm.naver") || url.includes("Redirect=Write");
-  });
-}
 
-// 에디터에 링크 삽입
-async function insertLinkToEditor(url, title) {
+// 에디터에 링크 삽입 — executeScript 직접 주입 방식
+async function insertLinkToEditor(linkUrl, linkTitle) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tabId = tabs[0]?.id;
-  const url_ = tabs[0]?.url || "";
-  const onWritePage = url_.includes("PostWriteForm.naver") || url_.includes("Redirect=Write");
-
-  if (!onWritePage) {
-    showToast("✍️ 네이버 글쓰기 페이지에서만 사용 가능합니다");
-    return;
-  }
   if (!tabId) return;
 
   try {
-    const resp = await chrome.tabs.sendMessage(tabId, {
-      type: "INSERT_LINK",
-      url,
-      title,
+    // 모든 iframe 포함 직접 코드 주입 (content.js 중계 불필요)
+    const results = await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      func: (u, t) => {
+        const el = document.querySelector('[contenteditable="true"]');
+        if (!el) return null; // 이 frame엔 에디터 없음 → 다음 frame 시도
+
+        el.focus();
+
+        // content.js가 저장한 커서 위치 복원 시도
+        const saved = window.__nLinkerRange;
+        if (saved) {
+          try {
+            const sel = window.getSelection();
+            if (saved.startContainer.isConnected) {
+              sel.removeAllRanges();
+              sel.addRange(saved);
+            }
+          } catch (_) {}
+        }
+
+        const sel = window.getSelection();
+
+        // 커서 없으면 문서 끝으로 이동
+        if (!sel || sel.rangeCount === 0) {
+          const r = document.createRange();
+          r.selectNodeContents(el);
+          r.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        }
+
+        // Method 1: execCommand insertHTML
+        const html = `<a href="${u}" target="_blank">${t}</a>`;
+        let ok = false;
+        try { ok = document.execCommand("insertHTML", false, html); } catch (_) {}
+
+        // Method 2: Range API 직접 삽입
+        if (!ok) {
+          try {
+            const range = sel.getRangeAt(0);
+            const link  = document.createElement("a");
+            link.href   = u;
+            link.target = "_blank";
+            link.textContent = t;
+            range.deleteContents();
+            range.insertNode(link);
+            const space = document.createTextNode(" ");
+            link.after(space);
+            ok = true;
+          } catch (_) {}
+        }
+
+        if (ok) el.dispatchEvent(new Event("input", { bubbles: true }));
+        return ok ? "ok" : "fail";
+      },
+      args: [linkUrl, linkTitle],
     });
-    if (resp?.ok) {
-      showToast("✅ 에디터에 링크 삽입 완료!");
+
+    const succeeded = results?.some(r => r.result === "ok");
+    if (succeeded) {
+      showToast("✅ 링크 삽입 완료!");
     } else {
-      showToast("❌ " + (resp?.error || "삽입 실패"));
+      showToast("❌ 에디터를 찾을 수 없습니다. 글쓰기/편집 페이지인지 확인해주세요.");
     }
-  } catch (_) {
-    showToast("❌ 에디터에 연결할 수 없습니다");
+  } catch (e) {
+    showToast("❌ " + (e.message || "삽입 오류"));
   }
 }
 
@@ -117,7 +157,6 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
       fetchPlan();
     }
   }
-  checkWriteMode();
 });
 
 function saveState() {

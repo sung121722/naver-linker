@@ -29,7 +29,8 @@
   "permissions": [
     "storage",
     "sidePanel",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
 
   "content_scripts": [
