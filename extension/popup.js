@@ -69,33 +69,37 @@ function showAutoSuggest(keyword, results) {
 
 
 
-// 에디터에 링크 삽입 — 두 가지 전략 순차 시도
+// 에디터에 링크 삽입 — executeScript 직접 주입 방식
 async function insertLinkToEditor(linkUrl, linkTitle) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tabId = tabs[0]?.id;
   if (!tabId) return;
 
   try {
+    // 모든 iframe 포함 직접 코드 주입 (content.js 중계 불필요)
     const results = await chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
       func: (u, t) => {
         const el = document.querySelector('[contenteditable="true"]');
-        if (!el) return null;
-
-        // 사용자가 이 frame에서 실제로 커서를 뒀던 경우만 삽입
-        // → allFrames:true 환경에서 제목 필드·다른 frame 중복 삽입 방지
-        const saved = window.__nLinkerRange;
-        if (!saved?.startContainer?.isConnected) return null;
+        if (!el) return null; // 이 frame엔 에디터 없음 → 다음 frame 시도
 
         el.focus();
 
-        // 커서 위치 복원
-        try {
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(saved);
-        } catch (_) {}
+        // content.js가 저장한 커서 위치 복원 시도
+        const saved = window.__nLinkerRange;
+        if (saved) {
+          try {
+            const sel = window.getSelection();
+            if (saved.startContainer.isConnected) {
+              sel.removeAllRanges();
+              sel.addRange(saved);
+            }
+          } catch (_) {}
+        }
+
         const sel = window.getSelection();
+
+        // 커서 없으면 문서 끝으로 이동
         if (!sel || sel.rangeCount === 0) {
           const r = document.createRange();
           r.selectNodeContents(el);
@@ -104,98 +108,82 @@ async function insertLinkToEditor(linkUrl, linkTitle) {
           sel.addRange(r);
         }
 
-        // ── Strategy 1: Synthetic ClipboardEvent paste ──────────────
-        // execCommand('createLink')는 Naver SmartEditor에서 차단됨
-        // paste 이벤트는 에디터 자체 paste 핸들러를 통해 처리 → link 허용
+        // ── 핵심: insertText → 선택 → createLink ──────────────
+        // insertHTML은 Naver 에디터 sanitizer가 <a>를 제거하므로 사용 불가
+        // createLink는 에디터 자신이 링크를 생성 → sanitizer 우회
+
+        // 1. 삽입 전 커서 위치 기록
+        const preSel    = window.getSelection();
+        const preRange  = preSel.getRangeAt(0).cloneRange();
+        preRange.collapse(true);
+        const preContainer = preRange.startContainer;
+        const preOffset    = preRange.startOffset;
+
+        // 2. 제목 텍스트 삽입
+        const textInserted = document.execCommand("insertText", false, t);
+        if (!textInserted) return "fail";
+
+        // 3. 방금 삽입한 텍스트 선택
         try {
-          const safeT = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          const dt = new DataTransfer();
-          dt.setData('text/html', `<a href="${u}" target="_blank">${safeT}</a>`);
-          dt.setData('text/plain', t);
-          const preLen = el.textContent.length;
-          el.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt }));
-          if (el.textContent.length !== preLen) {
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            return 'ok';
-          }
-        } catch (_) {}
-
-        // ── Strategy 2: insertText + TreeWalker 선택 + createLink ──────────────
-        if (!document.execCommand('insertText', false, t)) return 'fail';
-
-        try {
-          const postSel = window.getSelection();
-          if (!postSel || postSel.rangeCount === 0) return 'ok_text_only';
-
-          const endNode = postSel.getRangeAt(0).endContainer;
+          const postSel   = window.getSelection();
+          const postRange = postSel.getRangeAt(0);
           const selectRange = document.createRange();
-          let placed = false;
 
-          // 커서 바로 위 텍스트 노드에서 역탐색 (가장 빠른 경로)
-          if (endNode?.nodeType === Node.TEXT_NODE) {
-            const idx = endNode.textContent.lastIndexOf(t);
-            if (idx !== -1) {
-              selectRange.setStart(endNode, idx);
-              selectRange.setEnd(endNode, idx + t.length);
-              placed = true;
-            }
+          if (preContainer.nodeType === Node.TEXT_NODE &&
+              preContainer === postRange.endContainer) {
+            // 같은 텍스트 노드에 삽입된 경우 (일반적)
+            selectRange.setStart(preContainer, preOffset);
+            selectRange.setEnd(postRange.endContainer, postRange.endOffset);
+          } else {
+            // 다른 노드에 삽입된 경우 — 끝에서 t.length만큼 역방향 선택
+            const node = postRange.endContainer;
+            const off  = postRange.endOffset;
+            selectRange.setStart(node, Math.max(0, off - t.length));
+            selectRange.setEnd(node, off);
           }
 
-          // 못 찾으면 전체 에디터 TreeWalker로 마지막 발생 탐색
-          if (!placed) {
-            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-            let ln = null, li = -1, node;
-            while ((node = walker.nextNode())) {
-              const idx = node.textContent.indexOf(t);
-              if (idx !== -1) { ln = node; li = idx; }
-            }
-            if (ln) {
-              selectRange.setStart(ln, li);
-              selectRange.setEnd(ln, li + t.length);
-              placed = true;
-            }
-          }
-
-          if (!placed) return 'ok_text_only';
           postSel.removeAllRanges();
           postSel.addRange(selectRange);
-          if (!postSel.toString()) return 'ok_text_only';
         } catch (_) {
-          return 'ok_text_only';
+          return "ok_text_only"; // 텍스트만이라도 삽입됨
         }
 
-        if (!document.execCommand('createLink', false, u)) return 'ok_text_only';
+        // 4. 선택된 텍스트에 링크 적용 (에디터 자체 API 사용)
+        const linked = document.execCommand("createLink", false, u);
+        if (!linked) return "ok_text_only";
 
+        // 5. target="_blank" 설정
         try {
-          const cs = window.getSelection();
-          const anc = cs.getRangeAt(0)?.commonAncestorContainer;
-          const aNode = (anc?.nodeType === 1 ? anc : anc?.parentElement)?.closest('a');
+          const currentSel = window.getSelection();
+          const ancestor = currentSel.getRangeAt(0)?.commonAncestorContainer;
+          const aNode = (ancestor?.nodeType === 1 ? ancestor : ancestor?.parentElement)?.closest("a");
           if (aNode) {
-            aNode.target = '_blank';
+            aNode.target = "_blank";
+            // 커서를 링크 뒤로 이동
             const after = document.createRange();
             after.setStartAfter(aNode);
             after.collapse(true);
-            cs.removeAllRanges();
-            cs.addRange(after);
+            currentSel.removeAllRanges();
+            currentSel.addRange(after);
           }
         } catch (_) {}
 
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        return 'ok';
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        return "ok";
       },
       args: [linkUrl, linkTitle],
     });
 
-    const vals = results?.map(r => r.result) ?? [];
-    if (vals.includes('ok')) {
-      showToast('✅ 링크 삽입 완료!');
-    } else if (vals.includes('ok_text_only')) {
-      showToast('⚠️ 제목만 삽입됨 — 에디터에서 텍스트 선택 후 링크 버튼을 눌러주세요');
+    const results_values = results?.map(r => r.result) ?? [];
+    if (results_values.includes("ok")) {
+      showToast("✅ 링크 삽입 완료!");
+    } else if (results_values.includes("ok_text_only")) {
+      showToast("⚠️ 제목만 삽입됨 — 에디터에서 텍스트 선택 후 링크 버튼을 눌러주세요");
     } else {
-      showToast('❌ 에디터를 찾을 수 없습니다. 글쓰기/편집 페이지인지 확인해주세요.');
+      showToast("❌ 에디터를 찾을 수 없습니다. 글쓰기/편집 페이지인지 확인해주세요.");
     }
   } catch (e) {
-    showToast('❌ ' + (e.message || '삽입 오류'));
+    showToast("❌ " + (e.message || "삽입 오류"));
   }
 }
 
