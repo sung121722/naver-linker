@@ -4,113 +4,336 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>네이버 내부링크 도우미</title>
-  <link rel="stylesheet" href="popup.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 100%;
+      min-height: 100vh;
+      font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      font-size: 14px;
+      background: #f8f9fa;
+      color: #212529;
+    }
+
+    .header {
+      background: #03C75A;
+      color: white;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header h1 { font-size: 15px; font-weight: 700; }
+    .header .sub { font-size: 11px; opacity: 0.85; margin-top: 1px; }
+
+    .section {
+      background: white;
+      margin: 10px;
+      border-radius: 10px;
+      padding: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #868e96;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      border: 1px solid #dee2e6;
+      border-radius: 7px;
+      padding: 8px 10px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus { border-color: #03C75A; }
+
+    button {
+      background: #03C75A;
+      color: white;
+      border: none;
+      border-radius: 7px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    button:hover { background: #02a84c; }
+    button:disabled { background: #adb5bd; cursor: not-allowed; }
+
+    .blog-status {
+      font-size: 12px;
+      margin-top: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      display: none;
+    }
+    .blog-status.success { background: #e6f9ee; color: #087f3d; }
+    .blog-status.error { background: #fff0f0; color: #c0392b; }
+    .blog-status.info { background: #e8f4fd; color: #1a6fa8; }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #e9ecef;
+      margin-bottom: 12px;
+    }
+    .tab {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #868e96;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab.active { color: #03C75A; border-bottom-color: #03C75A; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .result-list { margin-top: 10px; }
+
+    .result-item {
+      padding: 8px 10px;
+      border: 1px solid #e9ecef;
+      border-radius: 7px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .result-item:hover { background: #f1fff7; border-color: #03C75A; }
+    .result-item .title { font-size: 13px; font-weight: 600; color: #212529; }
+    .result-item .meta { font-size: 11px; color: #868e96; margin-top: 2px; }
+    .result-item .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      margin-left: 4px;
+    }
+    .badge-high { background: #fff3cd; color: #856404; }
+    .badge-med { background: #e8f4fd; color: #1a6fa8; }
+
+    .empty { text-align: center; color: #adb5bd; font-size: 13px; padding: 20px 0; }
+
+    .limit-bar {
+      font-size: 11px;
+      color: #868e96;
+      text-align: right;
+      margin-top: 6px;
+    }
+    .limit-bar span { font-weight: 700; color: #212529; }
+
+    .loading {
+      text-align: center;
+      padding: 16px;
+      color: #868e96;
+      font-size: 13px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #dee2e6;
+      border-top-color: #03C75A;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .topn-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .topn-label { font-size: 11px; color: #868e96; }
+    .topn-btns { display: flex; gap: 4px; }
+    .topn-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      background: white;
+      color: #495057;
+      cursor: pointer;
+    }
+    .topn-btn.active {
+      background: #03C75A;
+      color: white;
+      border-color: #03C75A;
+    }
+
+    .meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 3px;
+    }
+    .meta-date { font-size: 11px; color: #868e96; }
+    .action-btns { display: flex; gap: 4px; }
+    .insert-btn, .copy-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .insert-btn { background: #03C75A; color: white; }
+    .insert-btn:hover { background: #02a84c; }
+    .copy-btn { background: #e9ecef; color: #495057; }
+    .copy-btn:hover { background: #dee2e6; }
+
+    .copy-toast {
+      position: fixed;
+      bottom: 12px; left: 50%;
+      transform: translateX(-50%);
+      background: #212529;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+    .copy-toast.show { opacity: 1; }
+
+    .plan-bar {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .plan-bar-row1 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .plan-bar-row2 {
+      margin-top: 5px;
+      display: flex;
+      gap: 6px;
+    }
+    .plan-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 10px;
+      letter-spacing: 0.5px;
+    }
+    .plan-badge.free    { background: #e9ecef; color: #495057; }
+    .plan-badge.starter { background: #cce5ff; color: #004085; }
+    .plan-badge.pro     { background: #fff3cd; color: #856404; }
+    .plan-info { flex: 1; color: #495057; font-weight: 600; }
+    .plan-info .plan-sub { font-size: 10px; color: #868e96; font-weight: 400; }
+    .upgrade-btn {
+      background: #ff6b35;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+    }
+    .upgrade-btn:hover { background: #e55a24; }
+  </style>
 </head>
 <body>
 
-<!-- ── 헤더 ──────────────────────────────────────────── -->
-<header class="header">
-  <span class="header-icon">🔗</span>
+<div class="header">
   <div>
-    <h1 class="header-title">네이버 내부링크 도우미</h1>
-    <p class="header-sub">관련 글 추천 · 중복 감지</p>
-  </div>
-</header>
-
-<!-- ── 블로그 등록 ────────────────────────────────────── -->
-<section class="card" id="registSection">
-  <p class="section-label">블로그 등록</p>
-  <div class="input-row">
-    <input type="text" id="blogIdInput" class="inp" placeholder="네이버 블로그 ID (예: myblog123)" />
-    <button class="btn btn-green" id="indexBtn">수집</button>
-  </div>
-
-  <!-- 프로그레스 바 -->
-  <div id="progressWrap" class="progress-wrap hidden">
-    <div class="progress-track">
-      <div id="progressFill" class="progress-fill"></div>
-    </div>
-    <p id="progressLabel" class="progress-label">수집 준비 중...</p>
-  </div>
-
-  <!-- 블로그 프로필 카드 -->
-  <div id="blogCard" class="blog-profile hidden">
-    <div class="blog-avatar">📝</div>
-    <div class="blog-info">
-      <div class="blog-id" id="blogCardId">—</div>
-      <div class="blog-meta" id="blogCardMeta">글 0개 등록됨</div>
-    </div>
-    <span class="blog-ok-badge">✓ 등록완료</span>
-    <button class="btn-icon" id="reindexBtn" title="글 목록 재수집">↺</button>
-  </div>
-
-  <!-- 상태 메시지 -->
-  <div id="blogStatus" class="status-msg hidden"></div>
-</section>
-
-<!-- ── 기능 영역 (등록 후 표시) ──────────────────────── -->
-<div id="featureSection" style="display:none">
-
-  <!-- 플랜 + 사용량 게이지 -->
-  <div class="plan-bar" id="planBar">
-    <div class="plan-bar-top">
-      <span class="plan-badge free" id="planBadge">FREE</span>
-      <span class="plan-usage-text" id="planUsageText">오늘 <b id="usedCount">0</b> / <b id="limitCount">5</b>회 사용</span>
-      <button class="btn btn-orange" id="upgradeBtn" style="display:none">🔓 업그레이드</button>
-    </div>
-    <div class="gauge-track">
-      <div class="gauge-fill" id="gaugeFill"></div>
-    </div>
-    <p class="gauge-label" id="gaugeLabel">오늘 5회 남음</p>
-  </div>
-
-  <!-- 탭 -->
-  <div class="tabs">
-    <div class="tab active" data-tab="search">관련 글 찾기</div>
-    <div class="tab" data-tab="duplicate">중복 감지</div>
-  </div>
-
-  <!-- ── 관련 글 탭 ── -->
-  <div class="tab-panel active" id="tab-search">
-    <div class="tab-inner">
-      <div class="input-row">
-        <input type="text" id="searchKeyword" class="inp" placeholder="새 글 키워드 입력" />
-        <button class="btn btn-green" id="searchBtn">검색</button>
-      </div>
-      <div class="topn-row">
-        <span class="topn-label">결과 수</span>
-        <div class="topn-btns">
-          <button class="topn-btn active" data-n="5">5개</button>
-          <button class="topn-btn" data-n="10">10개</button>
-          <button class="topn-btn" data-n="20">20개</button>
-        </div>
-      </div>
-    </div>
-    <div id="searchResults" class="results-area"></div>
-  </div>
-
-  <!-- ── 중복 감지 탭 ── -->
-  <div class="tab-panel" id="tab-duplicate">
-    <div class="tab-inner">
-      <div class="input-row">
-        <input type="text" id="dupKeyword" class="inp" placeholder="쓰려는 글 키워드 입력" />
-        <button class="btn btn-green" id="dupBtn">감지</button>
-      </div>
-      <div class="topn-row">
-        <span class="topn-label">결과 수</span>
-        <div class="topn-btns">
-          <button class="dup-topn-btn active" data-n="5">5개</button>
-          <button class="dup-topn-btn" data-n="10">10개</button>
-          <button class="dup-topn-btn" data-n="20">20개</button>
-        </div>
-      </div>
-    </div>
-    <div id="dupResults" class="results-area"></div>
+    <h1>🔗 네이버 내부링크 도우미</h1>
+    <div class="sub">블로그 내부링크 추천 · 중복 글 감지</div>
   </div>
 </div>
 
-<!-- ── 토스트 ────────────────────────────────────────── -->
-<div class="toast" id="copyToast">✅ 복사 완료!</div>
+<!-- 블로그 등록 섹션 -->
+<div class="section">
+  <div class="section-title">블로그 등록</div>
+  <div class="input-row">
+    <input type="text" id="blogIdInput" placeholder="네이버 블로그 ID (예: myblog123)" />
+    <button id="indexBtn">수집</button>
+  </div>
+  <div class="blog-status" id="blogStatus"></div>
+</div>
+
+
+<!-- 기능 탭 -->
+<div class="section" id="featureSection" style="display:none;">
+
+  <!-- 플랜 상태 바 -->
+  <div class="plan-bar" id="planBar">
+    <div class="plan-bar-row1">
+      <span class="plan-badge free" id="planBadge">FREE</span>
+      <span class="plan-info" id="planInfo">
+        오늘 <strong id="usedCount2">0</strong> / <span id="limitCount2">5</span>회 사용
+        <span class="plan-sub" id="planSub"></span>
+      </span>
+    </div>
+    <div class="plan-bar-row2" id="planActions">
+      <button class="upgrade-btn" id="upgradeBtn">🔓 플랜 업그레이드</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="search">② 관련 글 찾기</div>
+    <div class="tab" data-tab="duplicate">③ 중복 감지</div>
+  </div>
+
+  <!-- 관련 글 찾기 -->
+  <div class="tab-panel active" id="tab-search">
+    <div class="input-row">
+      <input type="text" id="searchKeyword" placeholder="새 글 키워드 입력" />
+      <button id="searchBtn">검색</button>
+    </div>
+    <div class="topn-row">
+      <span class="topn-label">결과 수</span>
+      <div class="topn-btns">
+        <button class="topn-btn active" data-n="5">5개</button>
+        <button class="topn-btn" data-n="10">10개</button>
+        <button class="topn-btn" data-n="20">20개</button>
+      </div>
+    </div>
+    <div class="limit-bar" id="limitBar" style="display:none;">
+      오늘 사용: <span id="usedCount">0</span> / <span id="limitCount">5</span>회
+    </div>
+    <div class="result-list" id="searchResults"></div>
+  </div>
+
+  <!-- 중복 감지 -->
+  <div class="tab-panel" id="tab-duplicate">
+    <div class="input-row">
+      <input type="text" id="dupKeyword" placeholder="쓰려는 글 키워드 입력" />
+      <button id="dupBtn">감지</button>
+    </div>
+    <div class="result-list" id="dupResults"></div>
+  </div>
+</div>
+
+<div class="copy-toast" id="copyToast">링크 복사됨!</div>
 
 <script src="popup.js"></script>
 </body>
