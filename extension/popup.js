@@ -82,17 +82,19 @@ async function insertLinkToEditor(linkUrl, linkTitle) {
         const el = document.querySelector('[contenteditable="true"]');
         if (!el) return null;
 
+        // 사용자가 이 frame에서 실제로 커서를 뒀던 경우만 삽입
+        // → allFrames:true 환경에서 제목 필드·다른 frame 중복 삽입 방지
+        const saved = window.__nLinkerRange;
+        if (!saved?.startContainer?.isConnected) return null;
+
         el.focus();
 
         // 커서 위치 복원
-        const saved = window.__nLinkerRange;
-        if (saved?.startContainer?.isConnected) {
-          try {
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(saved);
-          } catch (_) {}
-        }
+        try {
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(saved);
+        } catch (_) {}
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0) {
           const r = document.createRange();
