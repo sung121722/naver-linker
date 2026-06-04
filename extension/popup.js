@@ -112,43 +112,45 @@ async function insertLinkToEditor(linkUrl, linkTitle) {
         // insertHTML은 Naver 에디터 sanitizer가 <a>를 제거하므로 사용 불가
         // createLink는 에디터 자신이 링크를 생성 → sanitizer 우회
 
-        // 1. 삽입 전 커서 위치 기록
-        const preSel    = window.getSelection();
-        const preRange  = preSel.getRangeAt(0).cloneRange();
-        preRange.collapse(true);
-        const preContainer = preRange.startContainer;
-        const preOffset    = preRange.startOffset;
-
-        // 2. 제목 텍스트 삽입
+        // 1. 제목 텍스트 삽입
         const textInserted = document.execCommand("insertText", false, t);
         if (!textInserted) return "fail";
 
-        // 3. 방금 삽입한 텍스트 선택
+        // 2. 방금 삽입한 텍스트 선택 (lastIndexOf로 정확한 위치 탐색)
+        // Naver 에디터는 insertText 후 DOM을 재구성할 수 있어
+        // 사전 캡처한 노드 참조가 무효화되는 경우가 있음 → lastIndexOf 방식으로 해결
         try {
-          const postSel   = window.getSelection();
+          const postSel = window.getSelection();
+          if (!postSel || postSel.rangeCount === 0) return "ok_text_only";
+
           const postRange = postSel.getRangeAt(0);
+          const endNode   = postRange.endContainer;
+          const endOff    = postRange.endOffset;
           const selectRange = document.createRange();
 
-          if (preContainer.nodeType === Node.TEXT_NODE &&
-              preContainer === postRange.endContainer) {
-            // 같은 텍스트 노드에 삽입된 경우 (일반적)
-            selectRange.setStart(preContainer, preOffset);
-            selectRange.setEnd(postRange.endContainer, postRange.endOffset);
+          if (endNode.nodeType === Node.TEXT_NODE) {
+            const nodeText = endNode.textContent;
+            const textIdx  = nodeText.lastIndexOf(t, endOff);
+            if (textIdx !== -1) {
+              selectRange.setStart(endNode, textIdx);
+              selectRange.setEnd(endNode, textIdx + t.length);
+            } else {
+              selectRange.setStart(endNode, Math.max(0, endOff - t.length));
+              selectRange.setEnd(endNode, endOff);
+            }
           } else {
-            // 다른 노드에 삽입된 경우 — 끝에서 t.length만큼 역방향 선택
-            const node = postRange.endContainer;
-            const off  = postRange.endOffset;
-            selectRange.setStart(node, Math.max(0, off - t.length));
-            selectRange.setEnd(node, off);
+            return "ok_text_only";
           }
 
           postSel.removeAllRanges();
           postSel.addRange(selectRange);
+
+          if (!postSel.toString()) return "ok_text_only";
         } catch (_) {
-          return "ok_text_only"; // 텍스트만이라도 삽입됨
+          return "ok_text_only";
         }
 
-        // 4. 선택된 텍스트에 링크 적용 (에디터 자체 API 사용)
+        // 3. 선택된 텍스트에 링크 적용 (에디터 자체 API 사용)
         const linked = document.execCommand("createLink", false, u);
         if (!linked) return "ok_text_only";
 

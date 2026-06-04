@@ -25,6 +25,8 @@ _DATE_RE   = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
 _YMD_RE    = re.compile(r"^(\d{4})\.(\d{1,2})\.(\d{1,2})\.?$")   # "2026.5.28"
 _KO_MD_RE  = re.compile(r"^(\d{1,2})월\s*(\d{1,2})\.\s*$")       # "5월 28."
 _MD_RE     = re.compile(r"^(\d{1,2})\.(\d{1,2})\.\s*$")           # "06.04."
+_N_DAY_RE  = re.compile(r"^(\d+)일\s*전$")                        # "3일 전"
+_N_WEEK_RE = re.compile(r"^(\d+)주(?:일)?\s*전$")                 # "2주 전" / "2주일 전"
 
 def normalize_date_srv(raw: str) -> str:
     """YYYY.MM.DD 형식이 아닌 날짜를 정규화 (서버사이드 안전망)"""
@@ -54,7 +56,17 @@ def normalize_date_srv(raw: str) -> str:
     if "그저께" in s or "그제" in s:
         from datetime import timedelta
         return (today - timedelta(days=2)).strftime("%Y.%m.%d")
-    # 나머지 상대시간 (N분 전, N시간 전 등) → 오늘
+    # "N일 전"
+    m = _N_DAY_RE.match(s)
+    if m:
+        from datetime import timedelta
+        return (today - timedelta(days=int(m.group(1)))).strftime("%Y.%m.%d")
+    # "N주 전" / "N주일 전"
+    m = _N_WEEK_RE.match(s)
+    if m:
+        from datetime import timedelta
+        return (today - timedelta(weeks=int(m.group(1)))).strftime("%Y.%m.%d")
+    # 나머지 상대시간 (N분 전, N시간 전, 방금 등) → 오늘
     return today.strftime("%Y.%m.%d")
 
 import db
