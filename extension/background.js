@@ -57,15 +57,17 @@ function decodeTitle(title) {
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
-// "8분전", "어제" 같은 상대시간 → "최근" 변환, 절대 날짜는 그대로
+// "8분전", "어제" 같은 상대시간 → 오늘 날짜로 변환, 절대 날짜는 그대로
 function normalizeDate(raw) {
   if (!raw) return "";
   // YYYY.MM.DD 형식이면 그대로 반환
   if (/^\d{4}\.\d{2}\.\d{2}$/.test(raw)) return raw;
-  // 상대시간(분전, 시간전, 어제 등)은 오늘 날짜로 대체
-  const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })
-    .replace(/\. /g, ".").replace(/\.$/, "");
-  return today;
+  // 상대시간(N분 전, 어제 등) → 오늘 날짜 (locale 비의존, 항상 YYYY.MM.DD)
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const dd   = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}.${mm}.${dd}`;
 }
 
 // 서버에 posts 저장 후 세션 발급

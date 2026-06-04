@@ -1,9 +1,11 @@
 import uuid
 import asyncio
 import os
+import re
 import time
 import base64
 import httpx
+from datetime import date as date_cls
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +19,16 @@ BASE_URL        = os.environ.get("BASE_URL", "https://naver-linker.onrender.com"
 
 PLAN_PRICES = {"starter": 9900, "pro": 19900}
 PLAN_NAMES  = {"starter": "Starter (120회)", "pro": "Pro (400회)"}
+
+_DATE_RE = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
+
+def normalize_date_srv(raw: str) -> str:
+    """YYYY.MM.DD 형식이 아닌 날짜(상대시간 등)를 오늘 날짜로 정규화"""
+    if not raw:
+        return ""
+    if _DATE_RE.match(raw):
+        return raw
+    return date_cls.today().strftime("%Y.%m.%d")
 
 import db
 import indexer
@@ -171,6 +183,9 @@ async def search(req: SearchRequest, request: Request):
     else:
         remaining = max(0, limit - (count + 1))
 
+    # 날짜 정규화 (DB에 남은 상대시간 "N분 전" 등 처리)
+    for r in results:
+        r["date"] = normalize_date_srv(r.get("date", "") or "")
     # 최신순 정렬 (YYYY.MM.DD 형식은 문자열 역순으로 정렬 가능)
     results.sort(key=lambda r: r.get("date", "") or "", reverse=True)
 
@@ -221,6 +236,10 @@ async def duplicate(req: DuplicateRequest, request: Request):
         remaining = max(0, limit - (ip_count + 1))
     else:
         remaining = max(0, limit - (count + 1))
+
+    # 날짜 정규화
+    for p in result.get("similar_posts", []):
+        p["date"] = normalize_date_srv(p.get("date", "") or "")
 
     new_count = count + 1
     return {"ok": True, **result, "remaining": remaining, "plan": plan, "search_count": new_count, "daily_limit": limit}
