@@ -105,36 +105,77 @@ async function insertLinkToEditor(linkUrl, linkTitle) {
           sel.addRange(r);
         }
 
-        // Method 1: execCommand insertHTML
-        const html = `<a href="${u}" target="_blank">${t}</a>`;
-        let ok = false;
-        try { ok = document.execCommand("insertHTML", false, html); } catch (_) {}
+        // ── 핵심: insertText → 선택 → createLink ──────────────
+        // insertHTML은 Naver 에디터 sanitizer가 <a>를 제거하므로 사용 불가
+        // createLink는 에디터 자신이 링크를 생성 → sanitizer 우회
 
-        // Method 2: Range API 직접 삽입
-        if (!ok) {
-          try {
-            const range = sel.getRangeAt(0);
-            const link  = document.createElement("a");
-            link.href   = u;
-            link.target = "_blank";
-            link.textContent = t;
-            range.deleteContents();
-            range.insertNode(link);
-            const space = document.createTextNode(" ");
-            link.after(space);
-            ok = true;
-          } catch (_) {}
+        // 1. 삽입 전 커서 위치 기록
+        const preSel    = window.getSelection();
+        const preRange  = preSel.getRangeAt(0).cloneRange();
+        preRange.collapse(true);
+        const preContainer = preRange.startContainer;
+        const preOffset    = preRange.startOffset;
+
+        // 2. 제목 텍스트 삽입
+        const textInserted = document.execCommand("insertText", false, t);
+        if (!textInserted) return "fail";
+
+        // 3. 방금 삽입한 텍스트 선택
+        try {
+          const postSel   = window.getSelection();
+          const postRange = postSel.getRangeAt(0);
+          const selectRange = document.createRange();
+
+          if (preContainer.nodeType === Node.TEXT_NODE &&
+              preContainer === postRange.endContainer) {
+            // 같은 텍스트 노드에 삽입된 경우 (일반적)
+            selectRange.setStart(preContainer, preOffset);
+            selectRange.setEnd(postRange.endContainer, postRange.endOffset);
+          } else {
+            // 다른 노드에 삽입된 경우 — 끝에서 t.length만큼 역방향 선택
+            const node = postRange.endContainer;
+            const off  = postRange.endOffset;
+            selectRange.setStart(node, Math.max(0, off - t.length));
+            selectRange.setEnd(node, off);
+          }
+
+          postSel.removeAllRanges();
+          postSel.addRange(selectRange);
+        } catch (_) {
+          return "ok_text_only"; // 텍스트만이라도 삽입됨
         }
 
-        if (ok) el.dispatchEvent(new Event("input", { bubbles: true }));
-        return ok ? "ok" : "fail";
+        // 4. 선택된 텍스트에 링크 적용 (에디터 자체 API 사용)
+        const linked = document.execCommand("createLink", false, u);
+        if (!linked) return "ok_text_only";
+
+        // 5. target="_blank" 설정
+        try {
+          const currentSel = window.getSelection();
+          const ancestor = currentSel.getRangeAt(0)?.commonAncestorContainer;
+          const aNode = (ancestor?.nodeType === 1 ? ancestor : ancestor?.parentElement)?.closest("a");
+          if (aNode) {
+            aNode.target = "_blank";
+            // 커서를 링크 뒤로 이동
+            const after = document.createRange();
+            after.setStartAfter(aNode);
+            after.collapse(true);
+            currentSel.removeAllRanges();
+            currentSel.addRange(after);
+          }
+        } catch (_) {}
+
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        return "ok";
       },
       args: [linkUrl, linkTitle],
     });
 
-    const succeeded = results?.some(r => r.result === "ok");
-    if (succeeded) {
+    const results_values = results?.map(r => r.result) ?? [];
+    if (results_values.includes("ok")) {
       showToast("✅ 링크 삽입 완료!");
+    } else if (results_values.includes("ok_text_only")) {
+      showToast("⚠️ 제목만 삽입됨 — 에디터에서 텍스트 선택 후 링크 버튼을 눌러주세요");
     } else {
       showToast("❌ 에디터를 찾을 수 없습니다. 글쓰기/편집 페이지인지 확인해주세요.");
     }
