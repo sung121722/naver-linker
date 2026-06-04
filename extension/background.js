@@ -57,13 +57,44 @@ function decodeTitle(title) {
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
-// "8분전", "어제" 같은 상대시간 → 오늘 날짜로 변환, 절대 날짜는 그대로
+// 날짜 문자열 → YYYY.MM.DD 정규화
+// Naver API 반환 형식: "2026.05.28" / "5월 28." / "어제" / "4분 전" 등
 function normalizeDate(raw) {
   if (!raw) return "";
-  // YYYY.MM.DD 형식이면 그대로 반환
+
+  // 1. YYYY.MM.DD → 그대로
   if (/^\d{4}\.\d{2}\.\d{2}$/.test(raw)) return raw;
-  // 상대시간(N분 전, 어제 등) → 오늘 날짜 (locale 비의존, 항상 YYYY.MM.DD)
-  const d = new Date();
+
+  const today = new Date();
+  const year  = today.getFullYear();
+
+  // 2. "5월 28." / "12월 3." → YYYY.MM.DD
+  const mMatch = raw.match(/^(\d{1,2})월\s*(\d{1,2})\.\s*$/);
+  if (mMatch) {
+    const mm = String(mMatch[1]).padStart(2, "0");
+    const dd = String(mMatch[2]).padStart(2, "0");
+    return `${year}.${mm}.${dd}`;
+  }
+
+  // 3. "어제" → 어제 날짜
+  if (raw.includes("어제")) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 1);
+    return fmt(d);
+  }
+
+  // 4. "그저께" / "그제" → 이틀 전
+  if (raw.includes("그저께") || raw.includes("그제")) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 2);
+    return fmt(d);
+  }
+
+  // 5. 나머지 상대시간 (N분 전, N시간 전 등) → 오늘
+  return fmt(today);
+}
+
+function fmt(d) {
   const yyyy = d.getFullYear();
   const mm   = String(d.getMonth() + 1).padStart(2, "0");
   const dd   = String(d.getDate()).padStart(2, "0");

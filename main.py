@@ -20,15 +20,26 @@ BASE_URL        = os.environ.get("BASE_URL", "https://naver-linker.onrender.com"
 PLAN_PRICES = {"starter": 9900, "pro": 19900}
 PLAN_NAMES  = {"starter": "Starter (120회)", "pro": "Pro (400회)"}
 
-_DATE_RE = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
+_DATE_RE   = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
+_KO_MD_RE  = re.compile(r"^(\d{1,2})월\s*(\d{1,2})\.\s*$")  # "5월 28."
 
 def normalize_date_srv(raw: str) -> str:
-    """YYYY.MM.DD 형식이 아닌 날짜(상대시간 등)를 오늘 날짜로 정규화"""
+    """YYYY.MM.DD 형식이 아닌 날짜를 정규화 (서버사이드 안전망)"""
     if not raw:
         return ""
     if _DATE_RE.match(raw):
         return raw
-    return date_cls.today().strftime("%Y.%m.%d")
+    today = date_cls.today()
+    # "5월 28." 형식
+    m = _KO_MD_RE.match(raw)
+    if m:
+        return f"{today.year}.{int(m.group(1)):02d}.{int(m.group(2)):02d}"
+    # "어제"
+    if "어제" in raw:
+        d = today.replace(day=today.day - 1) if today.day > 1 else today
+        return d.strftime("%Y.%m.%d")
+    # 나머지 → 오늘
+    return today.strftime("%Y.%m.%d")
 
 import db
 import indexer
