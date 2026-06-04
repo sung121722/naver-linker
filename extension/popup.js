@@ -143,8 +143,15 @@ async function insertLinkToEditor(linkUrl, linkTitle) {
               const tn = document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
               if (tn) { node = tn; off = tn.length; }
             }
-            selectRange.setStart(node, Math.max(0, off - t.length));
-            selectRange.setEnd(node, off);
+            // off 기반 계산이 틀릴 수 있으므로 lastIndexOf로 실제 위치 먼저 탐색
+            const idx = node.nodeType === Node.TEXT_NODE ? node.textContent.lastIndexOf(t) : -1;
+            if (idx !== -1) {
+              selectRange.setStart(node, idx);
+              selectRange.setEnd(node, idx + t.length);
+            } else {
+              selectRange.setStart(node, Math.max(0, off - t.length));
+              selectRange.setEnd(node, off);
+            }
           }
 
           postSel.removeAllRanges();
