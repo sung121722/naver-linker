@@ -58,39 +58,56 @@ function decodeTitle(title) {
 }
 
 // 날짜 문자열 → YYYY.MM.DD 정규화
-// Naver API 반환 형식: "2026.05.28" / "5월 28." / "어제" / "4분 전" 등
+// Naver API 반환 형식: "2026.05.28" / "2026.5.28" / "5월 28." / "06.04." / "어제" / "4분 전" 등
 function normalizeDate(raw) {
   if (!raw) return "";
+  const s = raw.trim();
 
-  // 1. YYYY.MM.DD → 그대로
-  if (/^\d{4}\.\d{2}\.\d{2}$/.test(raw)) return raw;
+  // 1. YYYY.MM.DD (완전 정규화됨)
+  if (/^\d{4}\.\d{2}\.\d{2}$/.test(s)) return s;
 
   const today = new Date();
   const year  = today.getFullYear();
 
-  // 2. "5월 28." / "12월 3." → YYYY.MM.DD
-  const mMatch = raw.match(/^(\d{1,2})월\s*(\d{1,2})\.\s*$/);
-  if (mMatch) {
-    const mm = String(mMatch[1]).padStart(2, "0");
-    const dd = String(mMatch[2]).padStart(2, "0");
+  // 2. YYYY.M.D / YYYY.MM.D / YYYY.M.DD (제로패딩 없는 전체 날짜)
+  const ymdMatch = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})\.?$/);
+  if (ymdMatch) {
+    const mm = String(ymdMatch[2]).padStart(2, "0");
+    const dd = String(ymdMatch[3]).padStart(2, "0");
+    return `${ymdMatch[1]}.${mm}.${dd}`;
+  }
+
+  // 3. "5월 28." / "12월 3." (한국어 월 포맷)
+  const koMatch = s.match(/^(\d{1,2})월\s*(\d{1,2})\.\s*$/);
+  if (koMatch) {
+    const mm = String(koMatch[1]).padStart(2, "0");
+    const dd = String(koMatch[2]).padStart(2, "0");
     return `${year}.${mm}.${dd}`;
   }
 
-  // 3. "어제" → 어제 날짜
-  if (raw.includes("어제")) {
+  // 4. "06.04." / "6.4." (MM.DD. 포맷, 같은 해)
+  const mdMatch = s.match(/^(\d{1,2})\.(\d{1,2})\.\s*$/);
+  if (mdMatch) {
+    const mm = String(mdMatch[1]).padStart(2, "0");
+    const dd = String(mdMatch[2]).padStart(2, "0");
+    return `${year}.${mm}.${dd}`;
+  }
+
+  // 5. "어제"
+  if (s.includes("어제")) {
     const d = new Date(today);
     d.setDate(d.getDate() - 1);
     return fmt(d);
   }
 
-  // 4. "그저께" / "그제" → 이틀 전
-  if (raw.includes("그저께") || raw.includes("그제")) {
+  // 6. "그저께" / "그제"
+  if (s.includes("그저께") || s.includes("그제")) {
     const d = new Date(today);
     d.setDate(d.getDate() - 2);
     return fmt(d);
   }
 
-  // 5. 나머지 상대시간 (N분 전, N시간 전 등) → 오늘
+  // 7. 나머지 상대시간 (N분 전, N시간 전, 방금 등) → 오늘
   return fmt(today);
 }
 
@@ -100,6 +117,7 @@ function fmt(d) {
   const dd   = String(d.getDate()).padStart(2, "0");
   return `${yyyy}.${mm}.${dd}`;
 }
+
 
 // 서버에 posts 저장 후 세션 발급
 async function indexBlog(blogId, posts) {

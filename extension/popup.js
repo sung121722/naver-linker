@@ -28,8 +28,11 @@ const copyToast = document.getElementById("copyToast");
 const planBar = document.getElementById("planBar");
 const planBadge = document.getElementById("planBadge");
 const planInfo = document.getElementById("planInfo");
+const planSub = document.getElementById("planSub");
+const planActions = document.getElementById("planActions");
 const upgradeBtn = document.getElementById("upgradeBtn");
-const refreshPlanBtn = document.getElementById("refreshPlanBtn");
+const usedCount2 = document.getElementById("usedCount2");
+const limitCount2 = document.getElementById("limitCount2");
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
@@ -209,13 +212,26 @@ const SERVER_URL = "https://naver-linker.onrender.com";
 
 function updatePlanBar() {
   const plan = state.plan || "free";
+  const used = state.searchCount || 0;
+  const limit = state.dailyLimit || 5;
 
   planBadge.textContent = plan.toUpperCase();
   planBadge.className = `plan-badge ${plan}`;
 
-  // 카운터는 limitBar에서만 표시 — planBar는 뱃지 + 업그레이드 버튼만
-  planInfo.textContent = plan === "free" ? "무료 플랜" : `${plan} 플랜`;
-  upgradeBtn.style.display = plan === "free" ? "inline-block" : "none";
+  // 사용 횟수 표시
+  usedCount2.textContent = used;
+  limitCount2.textContent = limit;
+
+  // 서브 텍스트 (잔여 횟수 강조)
+  const remaining = Math.max(0, limit - used);
+  if (plan === "free") {
+    planSub.textContent = ` · 오늘 ${remaining}회 남음`;
+  } else {
+    planSub.textContent = ` · ${remaining}회 남음`;
+  }
+
+  // 무료 플랜일 때만 업그레이드 행 표시
+  planActions.style.display = plan === "free" ? "flex" : "none";
 }
 
 async function fetchPlan() {
@@ -238,13 +254,6 @@ upgradeBtn.addEventListener("click", () => {
   });
 });
 
-refreshPlanBtn.addEventListener("click", async () => {
-  refreshPlanBtn.textContent = "...";
-  refreshPlanBtn.disabled = true;
-  await fetchPlan();
-  refreshPlanBtn.textContent = "↺";
-  refreshPlanBtn.disabled = false;
-});
 
 // ── 블로그 수집 ──────────────────────────────────────────
 indexBtn.addEventListener("click", async () => {

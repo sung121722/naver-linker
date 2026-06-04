@@ -21,24 +21,39 @@ PLAN_PRICES = {"starter": 9900, "pro": 19900}
 PLAN_NAMES  = {"starter": "Starter (120회)", "pro": "Pro (400회)"}
 
 _DATE_RE   = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
-_KO_MD_RE  = re.compile(r"^(\d{1,2})월\s*(\d{1,2})\.\s*$")  # "5월 28."
+_YMD_RE    = re.compile(r"^(\d{4})\.(\d{1,2})\.(\d{1,2})\.?$")   # "2026.5.28"
+_KO_MD_RE  = re.compile(r"^(\d{1,2})월\s*(\d{1,2})\.\s*$")       # "5월 28."
+_MD_RE     = re.compile(r"^(\d{1,2})\.(\d{1,2})\.\s*$")           # "06.04."
 
 def normalize_date_srv(raw: str) -> str:
     """YYYY.MM.DD 형식이 아닌 날짜를 정규화 (서버사이드 안전망)"""
     if not raw:
         return ""
-    if _DATE_RE.match(raw):
-        return raw
+    s = raw.strip()
+    if _DATE_RE.match(s):
+        return s
     today = date_cls.today()
-    # "5월 28." 형식
-    m = _KO_MD_RE.match(raw)
+    # "2026.5.28" — 제로패딩 없는 전체 날짜
+    m = _YMD_RE.match(s)
+    if m:
+        return f"{m.group(1)}.{int(m.group(2)):02d}.{int(m.group(3)):02d}"
+    # "5월 28." — 한국어 월 포맷
+    m = _KO_MD_RE.match(s)
+    if m:
+        return f"{today.year}.{int(m.group(1)):02d}.{int(m.group(2)):02d}"
+    # "06.04." — MM.DD. 포맷
+    m = _MD_RE.match(s)
     if m:
         return f"{today.year}.{int(m.group(1)):02d}.{int(m.group(2)):02d}"
     # "어제"
-    if "어제" in raw:
-        d = today.replace(day=today.day - 1) if today.day > 1 else today
-        return d.strftime("%Y.%m.%d")
-    # 나머지 → 오늘
+    if "어제" in s:
+        from datetime import timedelta
+        return (today - timedelta(days=1)).strftime("%Y.%m.%d")
+    # "그저께" / "그제"
+    if "그저께" in s or "그제" in s:
+        from datetime import timedelta
+        return (today - timedelta(days=2)).strftime("%Y.%m.%d")
+    # 나머지 상대시간 (N분 전, N시간 전 등) → 오늘
     return today.strftime("%Y.%m.%d")
 
 import db
@@ -103,8 +118,14 @@ def parse_blog_id(raw: str) -> str:
 
 
 @app.post("/api/index")
-async def index_blog(req: IndexRequest):
+async def index_blog(req: IndexRequest, request: Request):
     blog_id = parse_blog_id(req.blog_id)
+    ip = get_client_ip(request)
+    if not db.check_and_record_ip_registration(ip, blog_id):
+        raise HTTPException(
+            status_code=429,
+            detail=f"하나의 IP에서 최대 {db.MAX_BLOGS_PER_IP}개의 블로그만 등록할 수 있습니다."
+        )
 
     if req.source == "extension" and req.posts:
         # Extension 모드: 클라이언트가 수집한 posts를 그대로 저장
@@ -262,6 +283,7 @@ def reset_ip(request: Request):
     conn = db.get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM ip_searches WHERE ip = %s", (client_ip,))
+    cur.execute("DELETE FROM ip_registrations WHERE ip = %s", (client_ip,))
     conn.commit()
     conn.close()
     return {"ok": True, "reset_ip": client_ip}

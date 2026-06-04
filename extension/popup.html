@@ -219,14 +219,21 @@
     .copy-toast.show { opacity: 1; }
 
     .plan-bar {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .plan-bar-row1 {
       display: flex;
       align-items: center;
       gap: 6px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 7px 10px;
-      margin-bottom: 10px;
-      font-size: 12px;
+    }
+    .plan-bar-row2 {
+      margin-top: 5px;
+      display: flex;
+      gap: 6px;
     }
     .plan-badge {
       font-size: 10px;
@@ -238,28 +245,20 @@
     .plan-badge.free    { background: #e9ecef; color: #495057; }
     .plan-badge.starter { background: #cce5ff; color: #004085; }
     .plan-badge.pro     { background: #fff3cd; color: #856404; }
-    .plan-info { flex: 1; color: #868e96; }
+    .plan-info { flex: 1; color: #495057; font-weight: 600; }
+    .plan-info .plan-sub { font-size: 10px; color: #868e96; font-weight: 400; }
     .upgrade-btn {
       background: #ff6b35;
       color: white;
       border: none;
       border-radius: 6px;
-      padding: 4px 10px;
+      padding: 5px 10px;
       font-size: 11px;
       font-weight: 700;
       cursor: pointer;
+      width: 100%;
     }
     .upgrade-btn:hover { background: #e55a24; }
-    .refresh-plan-btn {
-      background: none;
-      border: 1px solid #dee2e6;
-      color: #868e96;
-      border-radius: 6px;
-      padding: 3px 8px;
-      font-size: 10px;
-      cursor: pointer;
-    }
-    .refresh-plan-btn:hover { background: #f1f3f5; }
   </style>
 </head>
 <body>
@@ -287,10 +286,16 @@
 
   <!-- 플랜 상태 바 -->
   <div class="plan-bar" id="planBar">
-    <span class="plan-badge free" id="planBadge">FREE</span>
-    <span class="plan-info" id="planInfo">오늘 0 / 5회 사용</span>
-    <button class="refresh-plan-btn" id="refreshPlanBtn" title="플랜 새로고침">↺</button>
-    <button class="upgrade-btn" id="upgradeBtn" style="display:none;">⬆ 업그레이드</button>
+    <div class="plan-bar-row1">
+      <span class="plan-badge free" id="planBadge">FREE</span>
+      <span class="plan-info" id="planInfo">
+        오늘 <strong id="usedCount2">0</strong> / <span id="limitCount2">5</span>회 사용
+        <span class="plan-sub" id="planSub"></span>
+      </span>
+    </div>
+    <div class="plan-bar-row2" id="planActions">
+      <button class="upgrade-btn" id="upgradeBtn">🔓 플랜 업그레이드</button>
+    </div>
   </div>
 
   <div class="tabs">

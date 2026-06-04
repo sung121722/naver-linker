@@ -72,6 +72,13 @@ def init_db():
             created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ip_registrations (
+            ip      TEXT NOT NULL,
+            blog_id TEXT NOT NULL,
+            PRIMARY KEY (ip, blog_id)
+        )
+    """)
     try:
         cur.execute("ALTER TABLE ip_searches ADD COLUMN IF NOT EXISTS reset_date TEXT DEFAULT ''")
     except Exception:
@@ -82,6 +89,35 @@ def init_db():
         conn.rollback()
     conn.commit()
     conn.close()
+
+
+MAX_BLOGS_PER_IP = 3
+
+def check_and_record_ip_registration(ip: str, blog_id: str) -> bool:
+    """IP당 등록 가능한 blogId 수를 확인하고 기록. 초과 시 False 반환."""
+    conn = get_conn()
+    cur = conn.cursor()
+    # 이미 이 IP로 등록한 blogId 목록 조회
+    cur.execute("SELECT blog_id FROM ip_registrations WHERE ip = %s", (ip,))
+    registered = {r["blog_id"] for r in cur.fetchall()}
+
+    if blog_id in registered:
+        # 동일 blogId 재수집 → 항상 허용
+        conn.close()
+        return True
+
+    if len(registered) >= MAX_BLOGS_PER_IP:
+        conn.close()
+        return False
+
+    # 새 blogId 기록
+    cur.execute(
+        "INSERT INTO ip_registrations (ip, blog_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (ip, blog_id)
+    )
+    conn.commit()
+    conn.close()
+    return True
 
 
 def ensure_user(session_id: str, blog_id: str):

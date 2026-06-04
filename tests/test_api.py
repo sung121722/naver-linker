@@ -53,6 +53,84 @@ class TestIndex:
         assert len(resp.json()["session_id"]) > 0
 
 
+# ── IP 등록 제한 ─────────────────────────────────────────
+class TestIpRegistrationLimit:
+    POSTS = [{"title": "글", "url": "https://blog.naver.com/t/1", "date": "2026.01.01"}]
+
+    def _post_index(self, client, blog_id):
+        return client.post("/api/index", json={
+            "blog_id": blog_id,
+            "source": "extension",
+            "posts": self.POSTS,
+        })
+
+    def test_first_registration_allowed(self, client, monkeypatch, mock_db):
+        _, cur = mock_db
+        cur.fetchone.return_value = {"plan": "free", "search_count": 0, "is_paid": 0}
+        monkeypatch.setattr("db.check_and_record_ip_registration", lambda ip, bid: True)
+
+        resp = self._post_index(client, "myblog")
+        assert resp.status_code == 200
+
+    def test_same_blog_reindex_allowed(self, client, monkeypatch, mock_db):
+        _, cur = mock_db
+        cur.fetchone.return_value = {"plan": "free", "search_count": 0, "is_paid": 0}
+        monkeypatch.setattr("db.check_and_record_ip_registration", lambda ip, bid: True)
+
+        self._post_index(client, "myblog")
+        resp = self._post_index(client, "myblog")  # 동일 blogId 재수집
+        assert resp.status_code == 200
+
+    def test_fourth_different_blog_blocked(self, client, monkeypatch):
+        monkeypatch.setattr("db.check_and_record_ip_registration", lambda ip, bid: False)
+
+        resp = self._post_index(client, "blog4")
+        assert resp.status_code == 429
+        assert "3개" in resp.json()["detail"]
+
+    def test_db_registration_logic_allows_up_to_limit(self, monkeypatch):
+        """DB 함수 자체 로직 검증: 3개까지 허용, 4번째 차단"""
+        import db
+        registered = set()
+
+        def fake_get_conn():
+            from unittest.mock import MagicMock
+            conn = MagicMock()
+            cur = MagicMock()
+            conn.cursor.return_value = cur
+            cur.fetchall.return_value = [{"blog_id": b} for b in registered]
+            def fake_execute(sql, params=None):
+                if params and "INSERT INTO ip_registrations" in sql:
+                    registered.add(params[1])
+            cur.execute.side_effect = fake_execute
+            return conn
+
+        monkeypatch.setattr("db.get_conn", fake_get_conn)
+
+        assert db.check_and_record_ip_registration("1.2.3.4", "blog1") is True
+        assert db.check_and_record_ip_registration("1.2.3.4", "blog2") is True
+        assert db.check_and_record_ip_registration("1.2.3.4", "blog3") is True
+        assert db.check_and_record_ip_registration("1.2.3.4", "blog4") is False  # 초과
+
+    def test_same_blog_reindex_doesnt_count(self, monkeypatch):
+        """동일 blogId 재수집은 카운트 증가 없이 허용"""
+        import db
+        registered = {"myblog"}
+
+        def fake_get_conn():
+            from unittest.mock import MagicMock
+            conn = MagicMock()
+            cur = MagicMock()
+            conn.cursor.return_value = cur
+            cur.fetchall.return_value = [{"blog_id": b} for b in registered]
+            return conn
+
+        monkeypatch.setattr("db.get_conn", fake_get_conn)
+
+        # 이미 등록된 blog 재수집 → 항상 허용
+        assert db.check_and_record_ip_registration("1.2.3.4", "myblog") is True
+
+
 # ── /api/search ──────────────────────────────────────────
 class TestSearch:
     BASE_PAYLOAD = {
