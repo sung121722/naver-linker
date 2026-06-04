@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>내부링크 도우미 — 업그레이드</title>
+  <script src="https://js.tosspayments.com/v1/payment"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      background: #f0faf5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+    .logo { font-size: 24px; font-weight: 800; color: #03C75A; margin-bottom: 6px; }
+    .subtitle { font-size: 14px; color: #868e96; margin-bottom: 32px; }
+
+    .plans {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .plan-card {
+      background: white;
+      border: 2px solid #e9ecef;
+      border-radius: 16px;
+      padding: 28px 24px;
+      flex: 1;
+      min-width: 220px;
+      max-width: 280px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .plan-card:hover { border-color: #03C75A; box-shadow: 0 4px 20px rgba(3,199,90,0.15); }
+    .plan-card.recommended { border-color: #03C75A; }
+
+    .rec-badge {
+      display: inline-block;
+      background: #03C75A;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+    }
+
+    .plan-name { font-size: 20px; font-weight: 800; color: #212529; margin-bottom: 4px; }
+    .plan-price {
+      font-size: 28px;
+      font-weight: 800;
+      color: #03C75A;
+      margin-bottom: 16px;
+    }
+    .plan-price span { font-size: 14px; font-weight: 400; color: #868e96; }
+
+    .plan-features {
+      list-style: none;
+      margin-bottom: 24px;
+    }
+    .plan-features li {
+      font-size: 14px;
+      color: #495057;
+      padding: 4px 0;
+    }
+    .plan-features li::before { content: "✓ "; color: #03C75A; font-weight: 700; }
+
+    .pay-btn {
+      width: 100%;
+      background: #03C75A;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .pay-btn:hover { background: #02a84c; }
+    .pay-btn:disabled { background: #adb5bd; cursor: not-allowed; }
+
+    .notice {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #adb5bd;
+      text-align: center;
+      max-width: 480px;
+      line-height: 1.6;
+    }
+
+    .error-msg {
+      background: #fff0f0;
+      color: #c0392b;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      margin-top: 16px;
+      display: none;
+    }
+
+    .no-session {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      max-width: 400px;
+    }
+    .no-session h2 { color: #c0392b; margin-bottom: 12px; }
+    .no-session p { color: #868e96; font-size: 14px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+<div class="logo">🔗 내부링크 도우미</div>
+<div class="subtitle">더 많은 검색 횟수가 필요하신가요?</div>
+
+<div id="mainContent"></div>
+<div class="error-msg" id="errorMsg"></div>
+
+<div class="notice">
+  · 결제 후 검색 횟수가 즉시 적용됩니다<br>
+  · 크롬 Extension을 새로고침하면 플랜이 반영됩니다<br>
+  · 문의: 결제 후 환불은 미사용 횟수에 한해 가능합니다
+</div>
+
+<script>
+  const BASE_URL = 'https://naver-linker.onrender.com';
+  const params = new URLSearchParams(location.search);
+  const sessionId = params.get('session_id') || '';
+
+  const mainContent = document.getElementById('mainContent');
+  const errorMsg = document.getElementById('errorMsg');
+
+  if (!sessionId) {
+    mainContent.innerHTML = `
+      <div class="no-session">
+        <h2>⚠️ 세션 정보 없음</h2>
+        <p>Extension에서 업그레이드 버튼을 통해 접속해주세요.<br>
+           블로그를 먼저 등록하신 후 이용해주세요.</p>
+      </div>`;
+  } else {
+    mainContent.innerHTML = `
+      <div class="plans">
+        <div class="plan-card">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price">9,900<span>원</span></div>
+          <ul class="plan-features">
+            <li>검색 120회</li>
+            <li>중복 감지 포함</li>
+            <li>링크 자동 삽입</li>
+            <li>만료 없음</li>
+          </ul>
+          <button class="pay-btn" data-plan="starter">결제하기</button>
+        </div>
+
+        <div class="plan-card recommended">
+          <div class="rec-badge">추천</div>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">19,900<span>원</span></div>
+          <ul class="plan-features">
+            <li>검색 400회</li>
+            <li>중복 감지 포함</li>
+            <li>링크 자동 삽입</li>
+            <li>만료 없음</li>
+          </ul>
+          <button class="pay-btn" data-plan="pro">결제하기</button>
+        </div>
+      </div>`;
+
+    document.querySelectorAll('.pay-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const plan = btn.dataset.plan;
+        btn.disabled = true;
+        btn.textContent = '처리 중...';
+        errorMsg.style.display = 'none';
+
+        try {
+          const res = await fetch(`${BASE_URL}/api/payment/order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, plan }),
+          });
+          if (!res.ok) throw new Error('주문 생성 실패');
+          const { order_id, amount, client_key, order_name } = await res.json();
+
+          const tossPayments = TossPayments(client_key);
+          await tossPayments.requestPayment('카드', {
+            amount,
+            orderId: order_id,
+            orderName: order_name,
+            customerName: '네이버 블로거',
+            successUrl: `${BASE_URL}/api/payment/success`,
+            failUrl: `${BASE_URL}/api/payment/fail`,
+          });
+        } catch (e) {
+          errorMsg.textContent = e.message || '오류가 발생했습니다. 다시 시도해주세요.';
+          errorMsg.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '결제하기';
+        }
+      });
+    });
+  }
+</script>
+</body>
+</html>

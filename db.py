@@ -26,6 +26,18 @@ def init_db():
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id          SERIAL PRIMARY KEY,
+            order_id    TEXT UNIQUE NOT NULL,
+            session_id  TEXT NOT NULL,
+            plan        TEXT NOT NULL,
+            amount      INTEGER NOT NULL,
+            payment_key TEXT,
+            status      TEXT DEFAULT 'pending',
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS blogs (
             blog_id    TEXT PRIMARY KEY,
             post_count INTEGER DEFAULT 0,
@@ -176,6 +188,55 @@ def get_posts(blog_id: str) -> list:
     rows = cur.fetchall()
     conn.close()
     return [{"title": r["title"], "url": r["url"], "date": r["date"] or ""} for r in rows]
+
+
+def create_order(order_id: str, session_id: str, plan: str, amount: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO payments (order_id, session_id, plan, amount)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (order_id) DO NOTHING
+    """, (order_id, session_id, plan, amount))
+    conn.commit()
+    conn.close()
+
+
+def confirm_payment(order_id: str, payment_key: str):
+    """결제 승인 처리: payments 업데이트 + 해당 유저 plan 업그레이드 & search_count 리셋"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM payments WHERE order_id = %s", (order_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+    cur.execute(
+        "UPDATE payments SET status = 'paid', payment_key = %s WHERE order_id = %s",
+        (payment_key, order_id)
+    )
+    cur.execute(
+        "UPDATE users SET plan = %s, search_count = 0 WHERE session_id = %s",
+        (row["plan"], row["session_id"])
+    )
+    conn.commit()
+    result = dict(row)
+    conn.close()
+    return result
+
+
+def get_plan_info(session_id: str):
+    """현재 플랜 + 사용량 조회"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT plan, search_count FROM users WHERE session_id = %s", (session_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return {"plan": "free", "search_count": 0, "daily_limit": FREE_LIMIT}
+    plan = row["plan"] or "free"
+    limit = get_limit(plan)
+    return {"plan": plan, "search_count": row["search_count"], "daily_limit": limit}
 
 
 def get_blog(blog_id: str):

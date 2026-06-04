@@ -25,6 +25,11 @@ const dupKeyword = document.getElementById("dupKeyword");
 const dupBtn = document.getElementById("dupBtn");
 const dupResults = document.getElementById("dupResults");
 const copyToast = document.getElementById("copyToast");
+const planBar = document.getElementById("planBar");
+const planBadge = document.getElementById("planBadge");
+const planInfo = document.getElementById("planInfo");
+const upgradeBtn = document.getElementById("upgradeBtn");
+const refreshPlanBtn = document.getElementById("refreshPlanBtn");
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
@@ -107,6 +112,9 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
       showStatus(`✅ ${state.blogId} — 글 ${state.postCount}개 등록됨`, "success");
       featureSection.style.display = "block";
       updateLimitBar();
+      updatePlanBar();
+      // 팝업 열 때마다 플랜 서버 동기화 (결제 후 자동 반영)
+      fetchPlan();
     }
   }
   checkWriteMode();
@@ -115,6 +123,54 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
 function saveState() {
   chrome.storage.local.set({ [STORAGE_KEY]: state });
 }
+
+// ── 플랜 바 ──────────────────────────────────────────────
+const SERVER_URL = "https://naver-linker.onrender.com";
+
+function updatePlanBar() {
+  const plan = state.plan || "free";
+  const used = state.searchCount || 0;
+  const limit = state.dailyLimit || 5;
+
+  planBadge.textContent = plan.toUpperCase();
+  planBadge.className = `plan-badge ${plan}`;
+
+  if (plan === "free") {
+    planInfo.textContent = `오늘 ${used} / ${limit}회 사용`;
+    upgradeBtn.style.display = "inline-block";
+  } else {
+    planInfo.textContent = `${used} / ${limit}회 사용`;
+    upgradeBtn.style.display = "none";
+  }
+}
+
+async function fetchPlan() {
+  if (!state.sessionId) return;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/plan/${state.sessionId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    state.plan = data.plan;
+    state.searchCount = data.search_count;
+    state.dailyLimit = data.daily_limit;
+    saveState();
+    updatePlanBar();
+  } catch (_) {}
+}
+
+upgradeBtn.addEventListener("click", () => {
+  chrome.tabs.create({
+    url: `${SERVER_URL}/upgrade?session_id=${state.sessionId}`,
+  });
+});
+
+refreshPlanBtn.addEventListener("click", async () => {
+  refreshPlanBtn.textContent = "...";
+  refreshPlanBtn.disabled = true;
+  await fetchPlan();
+  refreshPlanBtn.textContent = "↺";
+  refreshPlanBtn.disabled = false;
+});
 
 // ── 블로그 수집 ──────────────────────────────────────────
 indexBtn.addEventListener("click", async () => {
@@ -150,6 +206,7 @@ indexBtn.addEventListener("click", async () => {
     showStatus(`✅ ${blogId} — 글 ${state.postCount}개 등록 완료`, "success");
     featureSection.style.display = "block";
     updateLimitBar();
+    updatePlanBar();
   } catch (e) {
     showStatus(`❌ 오류: ${e.message}`, "error");
   } finally {

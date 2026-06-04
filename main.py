@@ -1,12 +1,22 @@
 import uuid
 import asyncio
 import os
+import time
+import base64
+import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pathlib import Path
+
+TOSS_SECRET_KEY = os.environ.get("TOSS_SECRET_KEY", "")
+TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "")
+BASE_URL        = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
+
+PLAN_PRICES = {"starter": 9900, "pro": 19900}
+PLAN_NAMES  = {"starter": "Starter (120회)", "pro": "Pro (400회)"}
 
 import db
 import indexer
@@ -49,6 +59,10 @@ class DuplicateRequest(BaseModel):
     keyword: str
     session_id: str
     top_n: int = 10
+
+class OrderRequest(BaseModel):
+    session_id: str
+    plan: str
 
 
 # ── API ─────────────────────────────────────────────────
@@ -280,6 +294,120 @@ def debug_env():
 @app.get("/api/session")
 def new_session():
     return {"session_id": str(uuid.uuid4())}
+
+
+# ── Payment ──────────────────────────────────────────────
+
+@app.get("/upgrade", response_class=HTMLResponse)
+def upgrade_page():
+    return Path("static/upgrade.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/plan/{session_id}")
+def get_plan(session_id: str):
+    return db.get_plan_info(session_id)
+
+
+@app.post("/api/payment/order")
+def create_order(req: OrderRequest):
+    if req.plan not in PLAN_PRICES:
+        raise HTTPException(status_code=400, detail="잘못된 플랜")
+    if not req.session_id:
+        raise HTTPException(status_code=400, detail="session_id가 필요합니다")
+    amount   = PLAN_PRICES[req.plan]
+    order_id = f"NL-{req.plan}-{req.session_id[:12]}-{int(time.time())}"
+    db.create_order(order_id, req.session_id, req.plan, amount)
+    return {
+        "order_id":   order_id,
+        "amount":     amount,
+        "client_key": TOSS_CLIENT_KEY,
+        "order_name": PLAN_NAMES[req.plan],
+    }
+
+
+@app.get("/api/payment/success", response_class=HTMLResponse)
+async def payment_success(paymentKey: str, orderId: str, amount: int):
+    # 1. Toss API 승인
+    credentials = base64.b64encode(f"{TOSS_SECRET_KEY}:".encode()).decode()
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(
+            "https://api.tosspayments.com/v1/payments/confirm",
+            headers={
+                "Authorization": f"Basic {credentials}",
+                "Content-Type": "application/json",
+            },
+            json={"paymentKey": paymentKey, "orderId": orderId, "amount": amount},
+        )
+    if resp.status_code != 200:
+        err = resp.json().get("message", "결제 승인 실패")
+        raise HTTPException(status_code=400, detail=err)
+
+    # 2. DB 업데이트
+    result = db.confirm_payment(orderId, paymentKey)
+    if not result:
+        raise HTTPException(status_code=404, detail="주문을 찾을 수 없습니다")
+
+    plan_name = PLAN_NAMES.get(result["plan"], result["plan"])
+    return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결제 완료</title>
+<style>
+  body{{font-family:-apple-system,'Noto Sans KR',sans-serif;display:flex;align-items:center;
+        justify-content:center;min-height:100vh;margin:0;background:#f8f9fa}}
+  .card{{background:white;border-radius:16px;padding:40px 32px;text-align:center;
+         box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:360px;width:90%}}
+  .icon{{font-size:48px;margin-bottom:16px}}
+  h2{{color:#212529;margin-bottom:8px}}
+  p{{color:#868e96;font-size:14px;line-height:1.6;margin:0 0 24px}}
+  .plan-badge{{display:inline-block;background:#e6f9ee;color:#087f3d;
+               font-weight:700;padding:6px 16px;border-radius:20px;margin-bottom:20px}}
+  .guide{{background:#f8f9fa;border-radius:10px;padding:14px;font-size:13px;
+          color:#495057;text-align:left;margin-bottom:20px}}
+  .guide li{{margin-bottom:4px}}
+  button{{background:#03C75A;color:white;border:none;border-radius:8px;
+          padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;width:100%}}
+</style></head><body>
+<div class="card">
+  <div class="icon">🎉</div>
+  <h2>결제 완료!</h2>
+  <div class="plan-badge">{plan_name} 플랜</div>
+  <p>결제가 성공적으로 처리되었습니다.<br>Extension을 새로고침하면 바로 사용할 수 있어요.</p>
+  <div class="guide">
+    <ol>
+      <li>Chrome 주소창에 <b>chrome://extensions</b> 입력</li>
+      <li>네이버 내부링크 도우미 → <b>↺ 새로고침</b></li>
+      <li>Extension 아이콘 클릭 → 업그레이드된 플랜 확인</li>
+    </ol>
+  </div>
+  <button onclick="window.close()">탭 닫기</button>
+</div></body></html>"""
+
+
+@app.get("/api/payment/fail", response_class=HTMLResponse)
+def payment_fail(code: str = "", message: str = ""):
+    return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결제 실패</title>
+<style>
+  body{{font-family:-apple-system,'Noto Sans KR',sans-serif;display:flex;align-items:center;
+        justify-content:center;min-height:100vh;margin:0;background:#f8f9fa}}
+  .card{{background:white;border-radius:16px;padding:40px 32px;text-align:center;
+         box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:360px;width:90%}}
+  .icon{{font-size:48px;margin-bottom:16px}}
+  h2{{color:#c0392b;margin-bottom:8px}}
+  p{{color:#868e96;font-size:14px;margin:0 0 24px}}
+  .err{{background:#fff0f0;border-radius:8px;padding:10px 14px;
+        font-size:13px;color:#c0392b;margin-bottom:20px}}
+  button{{background:#6c757d;color:white;border:none;border-radius:8px;
+          padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;width:100%}}
+</style></head><body>
+<div class="card">
+  <div class="icon">😢</div>
+  <h2>결제 실패</h2>
+  <div class="err">{message or "결제가 취소되었거나 오류가 발생했습니다."}</div>
+  <p>다시 시도하거나 다른 카드를 사용해보세요.</p>
+  <button onclick="history.back()">뒤로 가기</button>
+</div></body></html>"""
 
 
 @app.get("/api/status/{blog_id}")

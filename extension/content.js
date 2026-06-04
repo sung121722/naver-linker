@@ -1,4 +1,3 @@
-// 에디터 iframe 찾기 + 링크 자동 삽입
 let editorIframe = null;
 let savedRange = null;
 
@@ -15,17 +14,31 @@ function findEditorIframe() {
   return null;
 }
 
+function saveRange(win) {
+  try {
+    const sel = win.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedRange = sel.getRangeAt(0).cloneRange();
+    }
+  } catch (_) {}
+}
+
 function attachSelectionListener(iframe) {
   try {
-    iframe.contentDocument.addEventListener("selectionchange", () => {
-      try {
-        const sel = iframe.contentWindow.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          savedRange = sel.getRangeAt(0).cloneRange();
-        }
-      } catch (_) {}
-    });
+    const doc = iframe.contentDocument;
+    const win = iframe.contentWindow;
+    doc.addEventListener("selectionchange", () => saveRange(win));
+    doc.addEventListener("mouseup", () => saveRange(win));
+    doc.addEventListener("keyup", () => saveRange(win));
   } catch (_) {}
+}
+
+function isRangeValid(range) {
+  try {
+    return range.startContainer.isConnected && range.endContainer.isConnected;
+  } catch (_) {
+    return false;
+  }
 }
 
 function waitForEditor(attempt = 0) {
@@ -40,7 +53,6 @@ function waitForEditor(attempt = 0) {
 
 waitForEditor();
 
-// popup.js → content.js: 링크 삽입 요청
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "INSERT_LINK") return;
 
@@ -56,41 +68,68 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const iframeWin = iframe.contentWindow;
       const editableEl = iframeDoc.querySelector("[contenteditable='true']") || iframeDoc.body;
 
-      // 포커스 복원 후 타이밍 대기
       editableEl.focus();
-      await new Promise(r => setTimeout(r, 80));
+      await new Promise((r) => setTimeout(r, 80));
 
       const sel = iframeWin.getSelection();
 
-      // 커서 위치 복원
-      if (savedRange) {
-        sel.removeAllRanges();
-        sel.addRange(savedRange);
+      // savedRange 복원 (유효한 경우만)
+      if (savedRange && isRangeValid(savedRange)) {
+        try {
+          sel.removeAllRanges();
+          sel.addRange(savedRange);
+        } catch (_) {}
       }
 
+      // 커서가 없으면 문서 끝으로 이동
       if (!sel || sel.rangeCount === 0) {
-        sendResponse({ ok: false, error: "에디터를 클릭해 커서를 위치시킨 후 다시 시도하세요" });
-        return;
+        const fallbackRange = iframeDoc.createRange();
+        fallbackRange.selectNodeContents(editableEl);
+        fallbackRange.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(fallbackRange);
       }
 
-      const linkText = msg.selectedText || msg.title;
-      const html = `<a href="${msg.url}" target="_blank">${linkText}</a>`;
+      const linkText = msg.title;
+      let success = false;
 
-      // execCommand 우선 시도
-      const inserted = iframeDoc.execCommand("insertHTML", false, html);
+      // Method 1: execCommand insertHTML (deprecated but still works in most browsers)
+      try {
+        const html = `<a href="${msg.url}" target="_blank">${linkText}</a>`;
+        success = iframeDoc.execCommand("insertHTML", false, html);
+      } catch (_) {}
 
-      if (!inserted) {
-        // 폴백: paste 이벤트 (text/html만)
-        const clipboardData = new DataTransfer();
-        clipboardData.setData("text/html", html);
-        editableEl.dispatchEvent(new ClipboardEvent("paste", {
-          clipboardData,
-          bubbles: true,
-          cancelable: true,
-        }));
+      // Method 2: Range API — 직접 DOM 노드 삽입 (HTML 스트립 우회)
+      if (!success) {
+        try {
+          const range = sel.getRangeAt(0);
+          const link = iframeDoc.createElement("a");
+          link.href = msg.url;
+          link.target = "_blank";
+          link.textContent = linkText;
+
+          range.deleteContents();
+          range.insertNode(link);
+
+          // 링크 뒤에 공백 추가 후 커서 이동
+          const space = iframeDoc.createTextNode(" ");
+          link.after(space);
+          const newRange = iframeDoc.createRange();
+          newRange.setStartAfter(space);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          success = true;
+        } catch (_) {}
       }
 
-      sendResponse({ ok: true });
+      if (success) {
+        // 에디터가 변경 사항을 감지하도록 input 이벤트 발화
+        editableEl.dispatchEvent(new Event("input", { bubbles: true }));
+        sendResponse({ ok: true });
+      } else {
+        sendResponse({ ok: false, error: "링크 삽입에 실패했습니다. 에디터를 클릭해 커서를 위치시킨 후 다시 시도하세요." });
+      }
     } catch (e) {
       sendResponse({ ok: false, error: e.message });
     }
