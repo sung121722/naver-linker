@@ -53,9 +53,15 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
                                 "reason": {
                                     "type": "string",
                                     "description": "이 글을 추천하는 이유 한 줄"
+                                },
+                                "score": {
+                                    "type": "integer",
+                                    "description": "새 글과의 관련도 점수 (0~100). 키워드 직접 일치=90이상, 주제 유사=60~89, 약한 연관=40~59",
+                                    "minimum": 0,
+                                    "maximum": 100
                                 }
                             },
-                            "required": ["title", "url", "reason"]
+                            "required": ["title", "url", "reason", "score"]
                         }
                     }
                 },

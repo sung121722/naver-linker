@@ -209,19 +209,13 @@ const SERVER_URL = "https://naver-linker.onrender.com";
 
 function updatePlanBar() {
   const plan = state.plan || "free";
-  const used = state.searchCount || 0;
-  const limit = state.dailyLimit || 5;
 
   planBadge.textContent = plan.toUpperCase();
   planBadge.className = `plan-badge ${plan}`;
 
-  if (plan === "free") {
-    planInfo.textContent = `오늘 ${used} / ${limit}회 사용`;
-    upgradeBtn.style.display = "inline-block";
-  } else {
-    planInfo.textContent = `${used} / ${limit}회 사용`;
-    upgradeBtn.style.display = "none";
-  }
+  // 카운터는 limitBar에서만 표시 — planBar는 뱃지 + 업그레이드 버튼만
+  planInfo.textContent = plan === "free" ? "무료 플랜" : `${plan} 플랜`;
+  upgradeBtn.style.display = plan === "free" ? "inline-block" : "none";
 }
 
 async function fetchPlan() {
@@ -342,15 +336,23 @@ searchKeyword.addEventListener("keydown", (e) => {
   if (e.key === "Enter") searchBtn.click();
 });
 
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
+}
+
 function renderSearchResults(results) {
   if (!results.length) {
     searchResults.innerHTML = `<div class="empty">관련 글을 찾지 못했습니다.</div>`;
     return;
   }
+  const today = todayStr();
   searchResults.innerHTML = results.map((r) => {
     const score = r.score || 0;
     const badgeClass = score >= 70 ? "badge-high" : "badge-med";
     const badgeLabel = score >= 70 ? "연관 높음" : "연관 있음";
+    const isToday = r.date === today;
+    const dateDisplay = isToday ? "🆕 오늘" : (r.date ? "📅 " + r.date : "");
     const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}">📎 삽입</button>`;
     return `
       <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
@@ -359,7 +361,7 @@ function renderSearchResults(results) {
           <span class="badge ${badgeClass}">${badgeLabel}</span>
         </div>
         <div class="meta-row">
-          <span class="meta-date">${r.date ? "📅 " + r.date : ""}</span>
+          <span class="meta-date">${dateDisplay}</span>
           <div class="action-btns">
             ${insertBtn}
             <button class="copy-btn" data-url="${r.url}">🔗 복사</button>
