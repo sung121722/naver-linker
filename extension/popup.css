@@ -296,10 +296,23 @@ body {
   font-weight: 600;
   transition: all 0.12s;
 }
-.topn-btn.active {
+.topn-btn.active,
+.dup-topn-btn.active {
   background: var(--green);
   color: white;
   border-color: var(--green);
+}
+.dup-topn-btn {
+  font-size: 11px;
+  padding: 4px 11px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  color: #4a5568;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  transition: all 0.12s;
 }
 
 /* ── Results area ───────────────────────────────────── */

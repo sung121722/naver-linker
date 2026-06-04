@@ -215,13 +215,23 @@ upgradeBtn.addEventListener("click", () => {
   chrome.tabs.create({ url: `${SERVER_URL}/upgrade?session_id=${state.sessionId}` });
 });
 
-// ── Top-N 선택 ────────────────────────────────────────
+// ── Top-N 선택 (관련 글) ──────────────────────────────
 let selectedTopN = 5;
 document.querySelectorAll(".topn-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".topn-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedTopN = parseInt(btn.dataset.n);
+  });
+});
+
+// ── Top-N 선택 (중복 감지) ────────────────────────────
+let selectedDupTopN = 5;
+document.querySelectorAll(".dup-topn-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".dup-topn-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedDupTopN = parseInt(btn.dataset.n);
   });
 });
 
@@ -323,6 +333,7 @@ dupBtn.addEventListener("click", async () => {
       sessionId: state.sessionId,
       blogId:    state.blogId,
       keyword,
+      topN:      selectedDupTopN,
     });
     if (!res.ok) throw new Error(res.error);
     renderDupResults(res.similar_posts || []);

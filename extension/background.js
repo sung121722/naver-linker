@@ -98,21 +98,37 @@ function normalizeDate(raw) {
     return `${year}.${mm}.${dd}`;
   }
 
-  // 5. "어제"
+  // 5. "N일 전" — 1주일 이내 글에 네이버가 사용하는 포맷
+  const dayMatch = s.match(/^(\d+)일\s*전$/);
+  if (dayMatch) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - parseInt(dayMatch[1]));
+    return fmt(d);
+  }
+
+  // 6. "N주일 전" / "N주 전"
+  const weekMatch = s.match(/^(\d+)주(?:일)?\s*전$/);
+  if (weekMatch) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - parseInt(weekMatch[1]) * 7);
+    return fmt(d);
+  }
+
+  // 7. "어제"
   if (s.includes("어제")) {
     const d = new Date(today);
     d.setDate(d.getDate() - 1);
     return fmt(d);
   }
 
-  // 6. "그저께" / "그제"
+  // 8. "그저께" / "그제"
   if (s.includes("그저께") || s.includes("그제")) {
     const d = new Date(today);
     d.setDate(d.getDate() - 2);
     return fmt(d);
   }
 
-  // 7. 나머지 상대시간 (N분 전, N시간 전, 방금 등) → 오늘
+  // 9. 나머지 (N분 전, N시간 전, 방금 등) → 오늘
   return fmt(today);
 }
 
