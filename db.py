@@ -4,7 +4,7 @@ import psycopg2
 import psycopg2.extras
 
 
-FREE_LIMIT    = 5
+FREE_LIMIT    = 9999  # TODO: 상용화 시 5로 복원
 STARTER_LIMIT = 120
 PRO_LIMIT     = 400
 
