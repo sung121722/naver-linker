@@ -208,7 +208,8 @@ function saveState() {
 }
 
 // ── 플랜 바 ──────────────────────────────────────────────
-const SERVER_URL = "https://naver-linker.onrender.com";
+const SERVER_URL  = "https://naver-linker.onrender.com";
+const DEV_SECRET  = "nlinker-test-2026";
 
 function updatePlanBar() {
   const plan = state.plan || "free";
@@ -237,7 +238,9 @@ function updatePlanBar() {
 async function fetchPlan() {
   if (!state.sessionId) return;
   try {
-    const res = await fetch(`${SERVER_URL}/api/plan/${state.sessionId}`);
+    const res = await fetch(`${SERVER_URL}/api/plan/${state.sessionId}`, {
+      headers: { "X-Dev-Secret": DEV_SECRET },
+    });
     if (!res.ok) return;
     const data = await res.json();
     state.plan = data.plan;

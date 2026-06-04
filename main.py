@@ -16,6 +16,7 @@ from pathlib import Path
 TOSS_SECRET_KEY = os.environ.get("TOSS_SECRET_KEY", "")
 TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "")
 BASE_URL        = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
+DEV_SECRET      = os.environ.get("DEV_SECRET", "")
 
 PLAN_PRICES = {"starter": 9900, "pro": 19900}
 PLAN_NAMES  = {"starter": "Starter (120회)", "pro": "Pro (400회)"}
@@ -71,6 +72,18 @@ app.add_middleware(
 db.init_db()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.middleware("http")
+async def dev_secret_guard(request, call_next):
+    # 정적 파일 · 어드민 · 결제 콜백은 키 불필요
+    skip = ("/static", "/", "/upgrade", "/api/payment/success",
+            "/api/payment/fail", "/api/admin")
+    if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
+        if request.headers.get("X-Dev-Secret") != DEV_SECRET:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    return await call_next(request)
 
 
 # ── Models ──────────────────────────────────────────────

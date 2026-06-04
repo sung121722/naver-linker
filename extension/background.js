@@ -1,5 +1,10 @@
-const NAVER_API = "https://blog.naver.com/PostTitleListAsync.nhn";
+const NAVER_API  = "https://blog.naver.com/PostTitleListAsync.nhn";
 const SERVER_API = "https://naver-linker.onrender.com";
+const DEV_SECRET = "nlinker-test-2026";
+const SERVER_HEADERS = {
+  "Content-Type": "application/json",
+  "X-Dev-Secret": DEV_SECRET,
+};
 const COUNT_PER_PAGE = 30;
 
 // 네이버 블로그 전체 글 목록 수집 (indexer.py 로직 → JS 포팅)
@@ -123,7 +128,7 @@ function fmt(d) {
 async function indexBlog(blogId, posts) {
   const resp = await fetch(`${SERVER_API}/api/index`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: SERVER_HEADERS,
     body: JSON.stringify({ blog_id: blogId, posts, source: "extension" }),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
@@ -134,7 +139,7 @@ async function indexBlog(blogId, posts) {
 async function searchRelated(sessionId, blogId, keyword, topN = 5) {
   const resp = await fetch(`${SERVER_API}/api/search`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: SERVER_HEADERS,
     body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword, top_n: topN }),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
@@ -145,7 +150,7 @@ async function searchRelated(sessionId, blogId, keyword, topN = 5) {
 async function detectDuplicate(sessionId, blogId, keyword) {
   const resp = await fetch(`${SERVER_API}/api/duplicate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: SERVER_HEADERS,
     body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword }),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
