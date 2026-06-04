@@ -5,3 +5,7 @@ httpx
 anthropic
 python-dotenv
 psycopg2-binary
+
+# test harness
+pytest
+pytest-mock
