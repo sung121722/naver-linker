@@ -68,6 +68,10 @@ function normalizeDate(raw) {
   if (!raw) return "";
   const s = raw.trim();
 
+  // 0. 날짜+시간 포맷 — 날짜 부분만 재귀 정규화 ("2026.06.04 13:45" 등)
+  const dtMatch = s.match(/^(\d{4}\.\d{1,2}\.\d{1,2})\s/);
+  if (dtMatch) return normalizeDate(dtMatch[1]);
+
   // 1. YYYY.MM.DD (완전 정규화됨)
   if (/^\d{4}\.\d{2}\.\d{2}$/.test(s)) return s;
 
