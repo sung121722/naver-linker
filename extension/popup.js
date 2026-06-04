@@ -136,8 +136,13 @@ async function insertLinkToEditor(linkUrl, linkTitle) {
             selectRange.setEnd(postRange.endContainer, postRange.endOffset);
           } else {
             // 다른 노드에 삽입된 경우 — 끝에서 t.length만큼 역방향 선택
-            const node = postRange.endContainer;
-            const off  = postRange.endOffset;
+            let node = postRange.endContainer;
+            let off  = postRange.endOffset;
+            // element 노드면 내부 텍스트 노드로 내려감 (빈 줄 삽입 시)
+            if (node.nodeType !== Node.TEXT_NODE) {
+              const tn = document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
+              if (tn) { node = tn; off = tn.length; }
+            }
             selectRange.setStart(node, Math.max(0, off - t.length));
             selectRange.setEnd(node, off);
           }
