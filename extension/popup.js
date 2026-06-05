@@ -282,34 +282,43 @@ document.querySelectorAll(".sort-btn").forEach((btn) => {
     document.querySelectorAll(".sort-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     currentSort = btn.dataset.sort;
-    const kw = searchKeyword.value.trim();
-    if (kw && state.sessionId) doSearch(kw);
+    const cached = currentSort === "latest" ? latestResults : relevanceResults;
+    if (cached.length) {
+      currentResults = cached;
+      renderSearchResults(currentResults);
+    }
   });
 });
 
 
 // ── 관련 글 검색 ─────────────────────────────────────────
+let relevanceResults = [];
+let latestResults = [];
+
 async function doSearch(keyword) {
-  searchResults.innerHTML = loadingHTML(currentSort === "latest" ? "최신 글 찾는 중..." : "관련 글 찾는 중...");
+  searchResults.innerHTML = loadingHTML("관련 글 찾는 중...");
   searchBtn.disabled = true;
+  relevanceResults = [];
+  latestResults = [];
 
   try {
-    const res = await sendMsg({
-      type: "SEARCH",
-      sessionId: state.sessionId,
-      blogId: state.blogId,
-      keyword,
-      topN: selectedTopN,
-      sort: currentSort,
-    });
-    if (!res.ok) throw new Error(res.error);
+    // 관련순(Claude) + 최신순(DB) 병렬 요청
+    const [relRes, latRes] = await Promise.all([
+      sendMsg({ type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId, keyword, topN: selectedTopN, sort: "relevance" }),
+      sendMsg({ type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId, keyword, topN: selectedTopN, sort: "latest" }),
+    ]);
 
-    state.dailyLimit = res.daily_limit || state.dailyLimit;
-    state.searchCount = state.dailyLimit - (res.remaining ?? 0);
+    if (!relRes.ok) throw new Error(relRes.error);
+
+    state.dailyLimit = relRes.daily_limit || state.dailyLimit;
+    state.searchCount = state.dailyLimit - (relRes.remaining ?? 0);
     saveState();
     updateLimitBar();
 
-    currentResults = res.results || [];
+    relevanceResults = relRes.results || [];
+    latestResults = latRes.ok ? (latRes.results || []) : [];
+
+    currentResults = currentSort === "latest" ? latestResults : relevanceResults;
     sortRow.style.display = currentResults.length ? "flex" : "none";
     renderSearchResults(currentResults);
   } catch (e) {
