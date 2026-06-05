@@ -156,11 +156,11 @@ async function indexBlog(blogId, posts) {
 }
 
 // 관련 글 검색
-async function searchRelated(sessionId, blogId, keyword, topN = 5) {
+async function searchRelated(sessionId, blogId, keyword, topN = 5, sort = "relevance") {
   const resp = await fetch(`${SERVER_API}/api/search`, {
     method: "POST",
     headers: SERVER_HEADERS,
-    body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword, top_n: topN }),
+    body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword, top_n: topN, sort }),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
   return resp.json();
@@ -213,7 +213,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const result = await indexBlog(msg.blogId, msg.posts);
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "SEARCH") {
-        const result = await searchRelated(msg.sessionId, msg.blogId, msg.keyword, msg.topN);
+        const result = await searchRelated(msg.sessionId, msg.blogId, msg.keyword, msg.topN, msg.sort);
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "DUPLICATE") {
         const result = await detectDuplicate(msg.sessionId, msg.blogId, msg.keyword);

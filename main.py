@@ -116,6 +116,7 @@ class SearchRequest(BaseModel):
     keyword: str
     session_id: str
     top_n: int = 5
+    sort: str = "relevance"
 
 class DuplicateRequest(BaseModel):
     blog_id: str
@@ -222,16 +223,21 @@ async def search(req: SearchRequest, request: Request):
         if count >= limit:
             raise HTTPException(status_code=402, detail="이용 한도를 초과했습니다.")
 
-    posts = db.get_posts(blog_id)
-    if not posts:
-        raise HTTPException(status_code=404, detail="먼저 블로그를 등록해주세요.")
-
-    loop = asyncio.get_running_loop()
     top_n = max(1, min(req.top_n, 20))
-    try:
-        results = await loop.run_in_executor(None, matcher.find_related, posts, req.keyword, top_n)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"검색 오류: {str(e)}")
+
+    if req.sort == "latest":
+        results = db.get_latest_by_keyword(blog_id, req.keyword, top_n)
+        if not results:
+            raise HTTPException(status_code=404, detail="키워드와 일치하는 글이 없습니다.")
+    else:
+        posts = db.get_posts(blog_id)
+        if not posts:
+            raise HTTPException(status_code=404, detail="먼저 블로그를 등록해주세요.")
+        loop = asyncio.get_running_loop()
+        try:
+            results = await loop.run_in_executor(None, matcher.find_related, posts, req.keyword, top_n)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"검색 오류: {str(e)}")
 
     db.increment_search(session_id, blog_id)
     if plan == "free":

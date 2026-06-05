@@ -278,32 +278,19 @@ const sortRow = document.getElementById("sortRow");
 
 document.querySelectorAll(".sort-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
+    if (btn.dataset.sort === currentSort) return;
     document.querySelectorAll(".sort-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     currentSort = btn.dataset.sort;
-    renderSearchResults(getSortedResults());
+    const kw = searchKeyword.value.trim();
+    if (kw && state.sessionId) doSearch(kw);
   });
 });
 
-function getLogNo(url) {
-  const m = (url || "").match(/\/(\d+)$/);
-  return m ? parseInt(m[1], 10) : 0;
-}
-
-function getSortedResults() {
-  const list = [...currentResults];
-  if (currentSort === "latest") {
-    list.sort((a, b) => getLogNo(b.url) - getLogNo(a.url));
-  }
-  return list;
-}
 
 // ── 관련 글 검색 ─────────────────────────────────────────
-searchBtn.addEventListener("click", async () => {
-  const keyword = searchKeyword.value.trim();
-  if (!keyword || !state.sessionId) return;
-
-  searchResults.innerHTML = loadingHTML("관련 글 찾는 중...");
+async function doSearch(keyword) {
+  searchResults.innerHTML = loadingHTML(currentSort === "latest" ? "최신 글 찾는 중..." : "관련 글 찾는 중...");
   searchBtn.disabled = true;
 
   try {
@@ -313,6 +300,7 @@ searchBtn.addEventListener("click", async () => {
       blogId: state.blogId,
       keyword,
       topN: selectedTopN,
+      sort: currentSort,
     });
     if (!res.ok) throw new Error(res.error);
 
@@ -322,9 +310,6 @@ searchBtn.addEventListener("click", async () => {
     updateLimitBar();
 
     currentResults = res.results || [];
-    currentSort = "relevance";
-    document.querySelectorAll(".sort-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelector('.sort-btn[data-sort="relevance"]')?.classList.add("active");
     sortRow.style.display = currentResults.length ? "flex" : "none";
     renderSearchResults(currentResults);
   } catch (e) {
@@ -335,6 +320,12 @@ searchBtn.addEventListener("click", async () => {
   } finally {
     searchBtn.disabled = false;
   }
+}
+
+searchBtn.addEventListener("click", () => {
+  const keyword = searchKeyword.value.trim();
+  if (!keyword || !state.sessionId) return;
+  doSearch(keyword);
 });
 
 searchKeyword.addEventListener("keydown", (e) => {

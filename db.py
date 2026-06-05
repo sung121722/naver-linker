@@ -217,6 +217,23 @@ def save_posts(blog_id: str, posts: list):
     conn.close()
 
 
+def get_latest_by_keyword(blog_id: str, keyword: str, n: int) -> list:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT title, url, date FROM posts WHERE blog_id = %s AND LOWER(title) LIKE LOWER(%s)",
+        (blog_id, f"%{keyword}%")
+    )
+    rows = cur.fetchall()
+    conn.close()
+    result = [{"title": r["title"], "url": r["url"], "date": r["date"] or "", "score": 80} for r in rows]
+    def logno(p):
+        part = p["url"].rsplit("/", 1)[-1]
+        return int(part) if part.isdigit() else 0
+    result.sort(key=logno, reverse=True)
+    return result[:n]
+
+
 def get_posts(blog_id: str) -> list:
     conn = get_conn()
     cur = conn.cursor()
