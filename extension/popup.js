@@ -348,15 +348,11 @@ function renderSearchResults(results) {
     return;
   }
   searchResults.innerHTML = results.map((r) => {
-    const score = r.score || 0;
-    const badgeClass = score >= 70 ? "badge-high" : "badge-med";
-    const badgeLabel = score >= 70 ? "연관 높음" : "연관 있음";
     const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}">📎 삽입</button>`;
     return `
       <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
         <div class="title">
           ${escapeHtml(r.title)}
-          <span class="badge ${badgeClass}">${badgeLabel}</span>
         </div>
         <div class="meta-row">
           <div class="action-btns">
