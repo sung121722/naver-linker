@@ -243,8 +243,6 @@ async def search(req: SearchRequest, request: Request):
     # 날짜 정규화 (DB에 남은 상대시간 "N분 전" 등 처리)
     for r in results:
         r["date"] = normalize_date_srv(r.get("date", "") or "")
-    # 최신순 정렬 (YYYY.MM.DD 형식은 문자열 역순으로 정렬 가능)
-    results.sort(key=lambda r: r.get("date", "") or "", reverse=True)
 
     new_count = count + 1
     return {

@@ -8,6 +8,7 @@ let state = {
   plan: "free",
   searchCount: 0,
   dailyLimit: 5,
+  indexedAt: 0,
 };
 
 // DOM
@@ -69,134 +70,80 @@ function showAutoSuggest(keyword, results) {
 
 
 
-// 에디터에 링크 삽입 — executeScript 직접 주입 방식
-async function insertLinkToEditor(linkUrl, linkTitle) {
+// 에디터에 링크 삽입 — URL만 다이얼로그에 입력 (제목 텍스트 삽입 없음)
+// 사용자가 에디터의 확인 버튼을 클릭해야 최종 삽입됨
+async function insertLinkToEditor(linkUrl) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tabId = tabs[0]?.id;
   if (!tabId) return;
 
   try {
-    // 모든 iframe 포함 직접 코드 주입 (content.js 중계 불필요)
-    const results = await chrome.scripting.executeScript({
+    const result = await chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
-      func: (u, t) => {
-        const el = document.querySelector('[contenteditable="true"]');
-        if (!el) return null; // 이 frame엔 에디터 없음 → 다음 frame 시도
+      func: (url) => {
+        const btn = document.querySelector('.se-toolbar button[class*="link"]');
+        if (!btn) return null;
 
-        el.focus();
+        return new Promise((resolve) => {
+          const observer = new MutationObserver(() => {
+            const urlInput = (
+              document.querySelector('input[placeholder*="http"]') ||
+              document.querySelector('input[placeholder*="URL"]') ||
+              document.querySelector('input[placeholder*="url"]')
+            );
+            if (!urlInput || !urlInput.offsetParent) return;
+            observer.disconnect();
 
-        // content.js가 저장한 커서 위치 복원 시도
-        const saved = window.__nLinkerRange;
-        if (saved) {
-          try {
-            const sel = window.getSelection();
-            if (saved.startContainer.isConnected) {
-              sel.removeAllRanges();
-              sel.addRange(saved);
-            }
-          } catch (_) {}
-        }
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+            setter.call(urlInput, url);
+            urlInput.dispatchEvent(new Event('input',  { bubbles: true }));
+            urlInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-        const sel = window.getSelection();
+            const container = urlInput.closest('div') || urlInput.parentElement;
+            const searchBtn = container?.querySelector('button') ||
+              [...document.querySelectorAll('button')].find(b =>
+                b.offsetParent && !b.textContent.includes('확인') &&
+                b !== document.querySelector('.se-toolbar button[class*="link"]')
+              );
+            if (searchBtn) searchBtn.click();
 
-        // 커서 없으면 문서 끝으로 이동
-        if (!sel || sel.rangeCount === 0) {
-          const r = document.createRange();
-          r.selectNodeContents(el);
-          r.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(r);
-        }
+            resolve('ready');
+          });
 
-        // ── 핵심: insertText → 선택 → createLink ──────────────
-        // insertHTML은 Naver 에디터 sanitizer가 <a>를 제거하므로 사용 불가
-        // createLink는 에디터 자신이 링크를 생성 → sanitizer 우회
-
-        // 1. 삽입 전 커서 위치 기록
-        const preSel    = window.getSelection();
-        const preRange  = preSel.getRangeAt(0).cloneRange();
-        preRange.collapse(true);
-        const preContainer = preRange.startContainer;
-        const preOffset    = preRange.startOffset;
-
-        // 2. 제목 텍스트 삽입
-        const textInserted = document.execCommand("insertText", false, t);
-        if (!textInserted) return "fail";
-
-        // 3. 방금 삽입한 텍스트 선택
-        try {
-          const postSel   = window.getSelection();
-          const postRange = postSel.getRangeAt(0);
-          const selectRange = document.createRange();
-
-          if (preContainer.nodeType === Node.TEXT_NODE &&
-              preContainer === postRange.endContainer) {
-            // 같은 텍스트 노드에 삽입된 경우 (일반적)
-            selectRange.setStart(preContainer, preOffset);
-            selectRange.setEnd(postRange.endContainer, postRange.endOffset);
-          } else {
-            // 다른 노드에 삽입된 경우 — 끝에서 t.length만큼 역방향 선택
-            let node = postRange.endContainer;
-            let off  = postRange.endOffset;
-            // element 노드면 내부 텍스트 노드로 내려감 (빈 줄 삽입 시)
-            if (node.nodeType !== Node.TEXT_NODE) {
-              const tn = document.createTreeWalker(node, NodeFilter.SHOW_TEXT).nextNode();
-              if (tn) { node = tn; off = tn.length; }
-            }
-            // off 기반 계산이 틀릴 수 있으므로 lastIndexOf로 실제 위치 먼저 탐색
-            const idx = node.nodeType === Node.TEXT_NODE ? node.textContent.lastIndexOf(t) : -1;
-            if (idx !== -1) {
-              selectRange.setStart(node, idx);
-              selectRange.setEnd(node, idx + t.length);
-            } else {
-              selectRange.setStart(node, Math.max(0, off - t.length));
-              selectRange.setEnd(node, off);
-            }
-          }
-
-          postSel.removeAllRanges();
-          postSel.addRange(selectRange);
-        } catch (_) {
-          return "ok_text_only"; // 텍스트만이라도 삽입됨
-        }
-
-        // 4. 선택된 텍스트에 링크 적용 (에디터 자체 API 사용)
-        const linked = document.execCommand("createLink", false, u);
-        if (!linked) return "ok_text_only";
-
-        // 5. target="_blank" 설정
-        try {
-          const currentSel = window.getSelection();
-          const ancestor = currentSel.getRangeAt(0)?.commonAncestorContainer;
-          const aNode = (ancestor?.nodeType === 1 ? ancestor : ancestor?.parentElement)?.closest("a");
-          if (aNode) {
-            aNode.target = "_blank";
-            // 커서를 링크 뒤로 이동
-            const after = document.createRange();
-            after.setStartAfter(aNode);
-            after.collapse(true);
-            currentSel.removeAllRanges();
-            currentSel.addRange(after);
-          }
-        } catch (_) {}
-
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-        return "ok";
+          observer.observe(document.body, { childList: true, subtree: true });
+          btn.click();
+          setTimeout(() => { observer.disconnect(); resolve('timeout'); }, 3000);
+        });
       },
-      args: [linkUrl, linkTitle],
+      args: [linkUrl],
     });
 
-    const results_values = results?.map(r => r.result) ?? [];
-    if (results_values.includes("ok")) {
-      showToast("✅ 링크 삽입 완료!");
-    } else if (results_values.includes("ok_text_only")) {
-      showToast("⚠️ 제목만 삽입됨 — 에디터에서 텍스트 선택 후 링크 버튼을 눌러주세요");
+    const r = result?.map(r => r.result).find(v => v !== null) ?? 'no_button';
+    if (r === 'ready') {
+      showToast("🔗 에디터의 확인 버튼을 눌러주세요");
+    } else if (r === 'timeout') {
+      showToast("⚠️ 다이얼로그가 열리지 않습니다");
     } else {
-      showToast("❌ 에디터를 찾을 수 없습니다. 글쓰기/편집 페이지인지 확인해주세요.");
+      showToast("❌ 링크 버튼을 찾을 수 없습니다");
     }
   } catch (e) {
     showToast("❌ " + (e.message || "삽입 오류"));
   }
+}
+
+// 패널 열릴 때마다 새 글 자동 동기화
+
+async function silentSync(blogId) {
+  try {
+    const fetchRes = await sendMsg({ type: "FETCH_POSTS", blogId });
+    if (!fetchRes.ok || !fetchRes.posts?.length) return;
+    const indexRes = await sendMsg({ type: "INDEX_BLOG", blogId, posts: fetchRes.posts });
+    if (!indexRes.ok) return;
+    state.postCount = fetchRes.posts.length;
+    state.indexedAt = Date.now();
+    saveState();
+    showStatus(`✅ ${blogId} — 글 ${state.postCount}개 (동기화 완료)`, "success");
+  } catch (_) {}
 }
 
 // 초기화: 저장된 상태 복원
@@ -211,6 +158,7 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
       updatePlanBar();
       // 팝업 열 때마다 플랜 서버 동기화 (결제 후 자동 반영)
       fetchPlan();
+      silentSync(state.blogId);
     }
   }
 });
@@ -301,6 +249,7 @@ indexBtn.addEventListener("click", async () => {
     state.dailyLimit = indexRes.daily_limit || 5;
     saveState();
 
+    state.indexedAt = Date.now();
     showStatus(`✅ ${blogId} — 글 ${state.postCount}개 등록 완료`, "success");
     featureSection.style.display = "block";
     updateLimitBar();
@@ -321,6 +270,33 @@ document.querySelectorAll(".topn-btn").forEach((btn) => {
     selectedTopN = parseInt(btn.dataset.n);
   });
 });
+
+// ── 정렬 버튼 ────────────────────────────────────────────
+let currentResults = [];
+let currentSort = "relevance";
+const sortRow = document.getElementById("sortRow");
+
+document.querySelectorAll(".sort-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".sort-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentSort = btn.dataset.sort;
+    renderSearchResults(getSortedResults());
+  });
+});
+
+function getLogNo(url) {
+  const m = (url || "").match(/\/(\d+)$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+function getSortedResults() {
+  const list = [...currentResults];
+  if (currentSort === "latest") {
+    list.sort((a, b) => getLogNo(b.url) - getLogNo(a.url));
+  }
+  return list;
+}
 
 // ── 관련 글 검색 ─────────────────────────────────────────
 searchBtn.addEventListener("click", async () => {
@@ -345,7 +321,12 @@ searchBtn.addEventListener("click", async () => {
     saveState();
     updateLimitBar();
 
-    renderSearchResults(res.results || []);
+    currentResults = res.results || [];
+    currentSort = "relevance";
+    document.querySelectorAll(".sort-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelector('.sort-btn[data-sort="relevance"]')?.classList.add("active");
+    sortRow.style.display = currentResults.length ? "flex" : "none";
+    renderSearchResults(currentResults);
   } catch (e) {
     const msg = e.message.includes("402")
       ? "오늘 무료 사용 횟수(5회)를 모두 사용했습니다.<br>내일 자정에 초기화됩니다."
@@ -360,23 +341,16 @@ searchKeyword.addEventListener("keydown", (e) => {
   if (e.key === "Enter") searchBtn.click();
 });
 
-function todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
-}
 
 function renderSearchResults(results) {
   if (!results.length) {
     searchResults.innerHTML = `<div class="empty">관련 글을 찾지 못했습니다.</div>`;
     return;
   }
-  const today = todayStr();
   searchResults.innerHTML = results.map((r) => {
     const score = r.score || 0;
     const badgeClass = score >= 70 ? "badge-high" : "badge-med";
     const badgeLabel = score >= 70 ? "연관 높음" : "연관 있음";
-    const isToday = r.date === today;
-    const dateDisplay = isToday ? "🆕 오늘" : (r.date ? "📅 " + r.date : "");
     const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}">📎 삽입</button>`;
     return `
       <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
@@ -385,7 +359,6 @@ function renderSearchResults(results) {
           <span class="badge ${badgeClass}">${badgeLabel}</span>
         </div>
         <div class="meta-row">
-          <span class="meta-date">${dateDisplay}</span>
           <div class="action-btns">
             ${insertBtn}
             <button class="copy-btn" data-url="${r.url}">🔗 복사</button>
@@ -403,7 +376,7 @@ function renderSearchResults(results) {
   document.querySelectorAll(".insert-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      insertLinkToEditor(btn.dataset.url, btn.dataset.title);
+      insertLinkToEditor(btn.dataset.url);
     });
   });
 }

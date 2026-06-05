@@ -220,7 +220,7 @@ def save_posts(blog_id: str, posts: list):
 def get_posts(blog_id: str) -> list:
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT title, url, date FROM posts WHERE blog_id = %s", (blog_id,))
+    cur.execute("SELECT title, url, date FROM posts WHERE blog_id = %s ORDER BY id DESC", (blog_id,))
     rows = cur.fetchall()
     conn.close()
     return [{"title": r["title"], "url": r["url"], "date": r["date"] or ""} for r in rows]

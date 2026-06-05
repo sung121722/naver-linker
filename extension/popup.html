@@ -181,6 +181,20 @@
       color: white;
       border-color: #03C75A;
     }
+    .sort-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border: 1px solid #dee2e6;
+      border-radius: 5px;
+      background: white;
+      color: #495057;
+      cursor: pointer;
+    }
+    .sort-btn.active {
+      background: #03C75A;
+      color: white;
+      border-color: #03C75A;
+    }
 
     .meta-row {
       display: flex;
@@ -319,6 +333,13 @@
     </div>
     <div class="limit-bar" id="limitBar" style="display:none;">
       오늘 사용: <span id="usedCount">0</span> / <span id="limitCount">5</span>회
+    </div>
+    <div class="topn-row" id="sortRow" style="display:none;">
+      <span class="topn-label">정렬</span>
+      <div class="topn-btns">
+        <button class="sort-btn active" data-sort="relevance">관련순</button>
+        <button class="sort-btn" data-sort="latest">최신순</button>
+      </div>
     </div>
     <div class="result-list" id="searchResults"></div>
   </div>
