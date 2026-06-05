@@ -21,15 +21,6 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
         f"{i+1}. [{p.get('date', '')}] {p['title']} | {p['url']}" for i, p in enumerate(posts)
     )
 
-    prompt = f"""아래는 네이버 블로그의 전체 글 목록입니다 (번호. [작성일] 제목 | URL 형식):
-
-{post_list}
-
-새 글의 주제/키워드: "{keyword}"
-
-위 목록에서 새 글과 관련도가 높아 내부 링크로 연결하기 좋은 글을 {top_n}개 골라주세요.
-관련도가 비슷한 경우 최근 작성된 글을 우선 선택해주세요."""
-
     tools = [
         {
             "name": "recommend_posts",
@@ -71,12 +62,26 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
         }
     ]
 
+    # 글 목록(post_list)은 캐싱, 키워드 지시문은 매번 새로 전송
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
         tools=tools,
-        tool_choice={"type": "any"},  # 반드시 tool 사용 강제
-        messages=[{"role": "user", "content": prompt}],
+        tool_choice={"type": "any"},
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"아래는 네이버 블로그의 전체 글 목록입니다 (번호. [작성일] 제목 | URL 형식):\n\n{post_list}",
+                    "cache_control": {"type": "ephemeral"}
+                },
+                {
+                    "type": "text",
+                    "text": f'\n\n새 글의 주제/키워드: "{keyword}"\n\n위 목록에서 새 글과 관련도가 높아 내부 링크로 연결하기 좋은 글을 {top_n}개 골라주세요.\n관련도가 비슷한 경우 최근 작성된 글을 우선 선택해주세요.'
+                }
+            ]
+        }],
     )
 
     date_map = {p["url"]: p.get("date", "") for p in posts}
