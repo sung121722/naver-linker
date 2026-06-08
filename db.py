@@ -308,16 +308,30 @@ def get_blog(blog_id: str):
     return row
 
 
-def add_user_blog(session_id: str, blog_id: str):
-    """Pro 유저의 등록 블로그 목록에 추가 (이미 있으면 무시)."""
+MAX_BLOGS_PRO = 3
+
+def add_user_blog(session_id: str, blog_id: str, max_blogs: int = 0) -> bool:
+    """블로그 목록에 추가. max_blogs > 0이면 한도 초과 시 False 반환."""
     conn = get_conn()
     cur = conn.cursor()
+    # 이미 등록된 블로그면 OK
+    cur.execute("SELECT 1 FROM user_blogs WHERE session_id = %s AND blog_id = %s", (session_id, blog_id))
+    if cur.fetchone():
+        conn.close()
+        return True
+    # 한도 체크
+    if max_blogs > 0:
+        cur.execute("SELECT COUNT(*) AS cnt FROM user_blogs WHERE session_id = %s", (session_id,))
+        if cur.fetchone()["cnt"] >= max_blogs:
+            conn.close()
+            return False
     cur.execute(
         "INSERT INTO user_blogs (session_id, blog_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
         (session_id, blog_id)
     )
     conn.commit()
     conn.close()
+    return True
 
 
 def get_user_blogs(session_id: str) -> list:

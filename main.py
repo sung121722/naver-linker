@@ -192,8 +192,10 @@ async def index_blog(req: IndexRequest, request: Request):
 
     session_id = req.session_id if req.session_id else str(uuid.uuid4())
     db.ensure_user(session_id, blog_id)
-    db.add_user_blog(session_id, blog_id)
     count, plan = db.get_search_count(session_id)
+    max_blogs = db.MAX_BLOGS_PRO if plan == "pro" else 0
+    if not db.add_user_blog(session_id, blog_id, max_blogs):
+        raise HTTPException(status_code=429, detail=f"Pro 플랜은 최대 {db.MAX_BLOGS_PRO}개 블로그까지 등록할 수 있습니다.")
     return {
         "ok": True,
         "blog_id": blog_id,
