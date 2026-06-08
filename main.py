@@ -98,7 +98,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def dev_secret_guard(request, call_next):
     # 정적 파일 · 어드민 · 결제 콜백은 키 불필요
     skip = ("/static", "/", "/upgrade", "/api/payment/success",
-            "/api/payment/fail", "/api/admin")
+            "/api/payment/fail", "/api/billing/success",
+            "/api/billing/fail", "/api/admin")
     if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
         if request.headers.get("X-Dev-Secret") != DEV_SECRET:
             from fastapi.responses import JSONResponse
@@ -555,6 +556,129 @@ async def payment_success(paymentKey: str, orderId: str, amount: int):
 
 @app.get("/api/payment/fail", response_class=HTMLResponse)
 def payment_fail(code: str = "", message: str = ""):
+    return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결제 실패</title>
+<style>
+  body{{font-family:-apple-system,'Noto Sans KR',sans-serif;display:flex;align-items:center;
+        justify-content:center;min-height:100vh;margin:0;background:#f8f9fa}}
+  .card{{background:white;border-radius:16px;padding:40px 32px;text-align:center;
+         box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:360px;width:90%}}
+  .icon{{font-size:48px;margin-bottom:16px}}
+  h2{{color:#c0392b;margin-bottom:8px}}
+  p{{color:#868e96;font-size:14px;margin:0 0 24px}}
+  .err{{background:#fff0f0;border-radius:8px;padding:10px 14px;
+        font-size:13px;color:#c0392b;margin-bottom:20px}}
+  button{{background:#6c757d;color:white;border:none;border-radius:8px;
+          padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;width:100%}}
+</style></head><body>
+<div class="card">
+  <div class="icon">😢</div>
+  <h2>결제 실패</h2>
+  <div class="err">{message or "결제가 취소되었거나 오류가 발생했습니다."}</div>
+  <p>다시 시도하거나 다른 카드를 사용해보세요.</p>
+  <button onclick="history.back()">뒤로 가기</button>
+</div></body></html>"""
+
+
+class BillingOrderRequest(BaseModel):
+    session_id: str
+    plan: str
+
+@app.post("/api/billing/order")
+def create_billing_order(req: BillingOrderRequest):
+    """빌링키 발급용 주문 생성 — customer_key 반환."""
+    if req.plan not in PLAN_PRICES:
+        raise HTTPException(status_code=400, detail="잘못된 플랜")
+    if not req.session_id:
+        raise HTTPException(status_code=400, detail="session_id가 필요합니다")
+    customer_key = str(uuid.uuid4())
+    return {
+        "customer_key": customer_key,
+        "client_key": TOSS_CLIENT_KEY,
+    }
+
+
+@app.get("/api/billing/success", response_class=HTMLResponse)
+async def billing_success(authKey: str, customerKey: str, session_id: str = "", plan: str = ""):
+    """토스 빌링키 발급 콜백 → billingKey 저장 + 첫 결제 실행."""
+    if not session_id or plan not in PLAN_PRICES:
+        raise HTTPException(status_code=400, detail="잘못된 요청입니다")
+
+    amount = PLAN_PRICES[plan]
+    credentials = base64.b64encode(f"{TOSS_SECRET_KEY}:".encode()).decode()
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        # 1단계: authKey → billingKey 발급
+        auth_resp = await client.post(
+            f"https://api.tosspayments.com/v1/billing/authorizations/{authKey}",
+            headers={"Authorization": f"Basic {credentials}", "Content-Type": "application/json"},
+            json={"customerKey": customerKey},
+        )
+    if auth_resp.status_code != 200:
+        err = auth_resp.json().get("message", "빌링키 발급 실패")
+        raise HTTPException(status_code=400, detail=err)
+
+    billing_key = auth_resp.json()["billingKey"]
+
+    # 2단계: 첫 결제 실행
+    order_id = f"NL-sub-{session_id[:12]}-{int(time.time())}"
+    async with httpx.AsyncClient(timeout=10) as client:
+        charge_resp = await client.post(
+            f"https://api.tosspayments.com/v1/billing/{billing_key}",
+            headers={"Authorization": f"Basic {credentials}", "Content-Type": "application/json"},
+            json={
+                "customerKey": customerKey,
+                "amount": amount,
+                "orderId": order_id,
+                "orderName": PLAN_NAMES[plan],
+            },
+        )
+    if charge_resp.status_code != 200:
+        err = charge_resp.json().get("message", "첫 결제 실패")
+        raise HTTPException(status_code=400, detail=err)
+
+    # 3단계: DB 저장 (빌링키 + 플랜 활성화 + 다음 결제일)
+    db.save_billing_key(session_id, billing_key, customerKey, plan, amount)
+
+    plan_name = PLAN_NAMES[plan]
+    return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>결제 완료</title>
+<style>
+  body{{font-family:-apple-system,'Noto Sans KR',sans-serif;display:flex;align-items:center;
+        justify-content:center;min-height:100vh;margin:0;background:#f8f9fa}}
+  .card{{background:white;border-radius:16px;padding:40px 32px;text-align:center;
+         box-shadow:0 4px 20px rgba(0,0,0,0.1);max-width:360px;width:90%}}
+  .icon{{font-size:48px;margin-bottom:16px}}
+  h2{{color:#212529;margin-bottom:8px}}
+  p{{color:#868e96;font-size:14px;line-height:1.6;margin:0 0 24px}}
+  .plan-badge{{display:inline-block;background:#e6f9ee;color:#087f3d;
+               font-weight:700;padding:6px 16px;border-radius:20px;margin-bottom:20px}}
+  .guide{{background:#f8f9fa;border-radius:10px;padding:14px;font-size:13px;
+          color:#495057;text-align:left;margin-bottom:20px}}
+  .guide li{{margin-bottom:4px}}
+  button{{background:#03C75A;color:white;border:none;border-radius:8px;
+          padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;width:100%}}
+</style></head><body>
+<div class="card">
+  <div class="icon">🎉</div>
+  <h2>구독 시작!</h2>
+  <div class="plan-badge">{plan_name}</div>
+  <p>결제가 완료되었습니다.<br>매월 자동으로 갱신됩니다.</p>
+  <div class="guide">
+    <ol>
+      <li>Chrome 주소창에 <b>chrome://extensions</b> 입력</li>
+      <li>네이버 내부링크 도우미 → <b>↺ 새로고침</b></li>
+      <li>Extension 아이콘 클릭 → 업그레이드된 플랜 확인</li>
+    </ol>
+  </div>
+  <button onclick="window.close()">탭 닫기</button>
+</div></body></html>"""
+
+
+@app.get("/api/billing/fail", response_class=HTMLResponse)
+def billing_fail(code: str = "", message: str = ""):
     return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>결제 실패</title>
