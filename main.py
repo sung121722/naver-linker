@@ -18,8 +18,22 @@ TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "")
 BASE_URL        = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
 DEV_SECRET      = os.environ.get("DEV_SECRET", "")
 
-PLAN_PRICES = {"starter": 9900, "pro": 19900}
-PLAN_NAMES  = {"starter": "Starter (120회)", "pro": "Pro (400회)"}
+PLAN_PRICES = {
+    "lite":      2900,
+    "standard":  6900,
+    "starter":   9900,
+    "sub_basic": 8900,
+    "sub_std":   10900,
+    "sub_pro":   12900,
+}
+PLAN_NAMES = {
+    "lite":      "라이트 (50회)",
+    "standard":  "스탠다드 (150회)",
+    "starter":   "프로 (300회)",
+    "sub_basic": "구독 베이직 (300회/월)",
+    "sub_std":   "구독 스탠다드 (500회/월)",
+    "sub_pro":   "구독 프로 (750회/월)",
+}
 
 _DATE_RE   = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
 _YMD_RE    = re.compile(r"^(\d{4})\.(\d{1,2})\.(\d{1,2})\.?$")   # "2026.5.28"
@@ -211,15 +225,14 @@ async def search(req: SearchRequest, request: Request):
     client_ip = get_client_ip(request)
 
     count, plan = db.get_search_count(session_id)
+
     limit = db.get_limit(plan)
 
     if plan == "free":
-        # 무료 플랜: IP 기반 일일 제한만 체크 (매일 초기화)
         ip_count = db.get_ip_search_count(client_ip)
         if ip_count >= limit:
             raise HTTPException(status_code=402, detail="무료 체험이 끝났습니다.")
     else:
-        # 유료 플랜: 세션 기반 누적 횟수 체크
         if count >= limit:
             raise HTTPException(status_code=402, detail="이용 한도를 초과했습니다.")
 
@@ -268,6 +281,7 @@ async def duplicate(req: DuplicateRequest, request: Request):
     client_ip = get_client_ip(request)
 
     count, plan = db.get_search_count(session_id)
+
     limit = db.get_limit(plan)
 
     if plan == "free":

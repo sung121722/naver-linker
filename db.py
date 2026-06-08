@@ -4,14 +4,16 @@ import psycopg2
 import psycopg2.extras
 
 
-FREE_LIMIT    = 9999  # TODO: 상용화 시 5로 복원
-STARTER_LIMIT = 120
-PRO_LIMIT     = 400
+FREE_LIMIT = 5
 
 PLAN_LIMITS = {
-    "free":    FREE_LIMIT,
-    "starter": STARTER_LIMIT,
-    "pro":     PRO_LIMIT,
+    "free":       FREE_LIMIT,
+    "lite":       50,
+    "standard":   150,
+    "starter":    300,
+    "sub_basic":  300,
+    "sub_std":    500,
+    "sub_pro":    750,
 }
 
 
