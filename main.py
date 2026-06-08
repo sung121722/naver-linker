@@ -335,6 +335,22 @@ async def duplicate(req: DuplicateRequest, request: Request):
     return {"ok": True, **result, "remaining": remaining, "plan": plan, "search_count": new_count, "daily_limit": limit}
 
 
+@app.get("/api/admin/set-plan")
+def admin_set_plan(session_id: str, plan: str = "pro"):
+    """테스트용: 특정 세션의 플랜을 강제 설정."""
+    if plan not in ("free", "light", "basic", "pro"):
+        raise HTTPException(status_code=400, detail="잘못된 플랜")
+    conn = db.get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET plan = %s, search_count = 0, reset_at = NOW() WHERE session_id = %s",
+        (plan, session_id)
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "session_id": session_id, "plan": plan}
+
+
 @app.get("/api/admin/reset-ip")
 def reset_ip(request: Request):
     client_ip = get_client_ip(request)
