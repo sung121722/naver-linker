@@ -34,6 +34,8 @@ const planActions = document.getElementById("planActions");
 const upgradeBtn = document.getElementById("upgradeBtn");
 const usedCount2 = document.getElementById("usedCount2");
 const limitCount2 = document.getElementById("limitCount2");
+const blogSwitcher = document.getElementById("blogSwitcher");
+const blogSelect = document.getElementById("blogSelect");
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
@@ -193,6 +195,13 @@ function updatePlanBar() {
 
   // 무료 플랜일 때만 업그레이드 행 표시
   planActions.style.display = plan === "free" ? "flex" : "none";
+
+  // Pro 플랜일 때만 계정 전환 드롭다운 표시
+  if (plan === "pro") {
+    loadBlogSwitcher();
+  } else {
+    blogSwitcher.style.display = "none";
+  }
 }
 
 async function fetchPlan() {
@@ -217,6 +226,36 @@ upgradeBtn.addEventListener("click", () => {
   });
 });
 
+async function loadBlogSwitcher() {
+  if (!state.sessionId) return;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/user-blogs/${state.sessionId}`, {
+      headers: { "X-Dev-Secret": DEV_SECRET },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const blogs = data.blogs || [];
+    if (blogs.length < 2) {
+      blogSwitcher.style.display = "none";
+      return;
+    }
+    blogSelect.innerHTML = blogs
+      .map((id) => `<option value="${id}" ${id === state.blogId ? "selected" : ""}>${id}</option>`)
+      .join("");
+    blogSwitcher.style.display = "block";
+  } catch (_) {}
+}
+
+blogSelect.addEventListener("change", () => {
+  const newBlogId = blogSelect.value;
+  if (!newBlogId || newBlogId === state.blogId) return;
+  state.blogId = newBlogId;
+  blogIdInput.value = newBlogId;
+  state.postCount = 0;
+  saveState();
+  showStatus(`✅ ${newBlogId} 로 전환됨`, "success");
+});
+
 
 // ── 블로그 수집 ──────────────────────────────────────────
 indexBtn.addEventListener("click", async () => {
@@ -234,11 +273,12 @@ indexBtn.addEventListener("click", async () => {
 
     showStatus(`글 ${fetchRes.posts.length}개 발견. 서버에 저장 중...`, "info");
 
-    // Step 2: 서버에 저장 + 세션 발급
+    // Step 2: 서버에 저장 + 세션 발급 (기존 세션 있으면 재사용)
     const indexRes = await sendMsg({
       type: "INDEX_BLOG",
       blogId,
       posts: fetchRes.posts,
+      sessionId: state.sessionId || "",
     });
     if (!indexRes.ok) throw new Error(indexRes.error);
 

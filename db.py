@@ -78,6 +78,14 @@ def init_db():
             PRIMARY KEY (ip, blog_id)
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_blogs (
+            session_id  TEXT NOT NULL,
+            blog_id     TEXT NOT NULL,
+            added_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (session_id, blog_id)
+        )
+    """)
     try:
         cur.execute("ALTER TABLE ip_searches ADD COLUMN IF NOT EXISTS reset_date TEXT DEFAULT ''")
     except Exception:
@@ -298,3 +306,28 @@ def get_blog(blog_id: str):
     row = cur.fetchone()
     conn.close()
     return row
+
+
+def add_user_blog(session_id: str, blog_id: str):
+    """Pro 유저의 등록 블로그 목록에 추가 (이미 있으면 무시)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO user_blogs (session_id, blog_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (session_id, blog_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_user_blogs(session_id: str) -> list:
+    """세션이 등록한 블로그 목록 반환 (최신 등록 순)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT blog_id FROM user_blogs WHERE session_id = %s ORDER BY added_at DESC",
+        (session_id,)
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [r["blog_id"] for r in rows]

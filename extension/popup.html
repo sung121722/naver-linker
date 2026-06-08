@@ -273,6 +273,30 @@
       width: 100%;
     }
     .upgrade-btn:hover { background: #e55a24; }
+
+    .blog-switcher {
+      margin-bottom: 10px;
+      display: none;
+    }
+    .blog-switcher-label {
+      font-size: 11px;
+      color: #868e96;
+      font-weight: 700;
+      margin-bottom: 5px;
+      letter-spacing: 0.3px;
+    }
+    .blog-switcher select {
+      width: 100%;
+      border: 1px solid #03C75A;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #212529;
+      background: #f1fff7;
+      outline: none;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -310,6 +334,12 @@
     <div class="plan-bar-row2" id="planActions">
       <button class="upgrade-btn" id="upgradeBtn">🔓 플랜 업그레이드</button>
     </div>
+  </div>
+
+  <!-- Pro 계정 전환 드롭다운 -->
+  <div class="blog-switcher" id="blogSwitcher">
+    <div class="blog-switcher-label">🔄 계정 전환 (PRO)</div>
+    <select id="blogSelect"></select>
   </div>
 
   <div class="tabs">

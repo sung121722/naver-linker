@@ -145,11 +145,13 @@ function fmt(d) {
 
 
 // 서버에 posts 저장 후 세션 발급
-async function indexBlog(blogId, posts) {
+async function indexBlog(blogId, posts, existingSessionId = "") {
+  const body = { blog_id: blogId, posts, source: "extension" };
+  if (existingSessionId) body.session_id = existingSessionId;
   const resp = await fetch(`${SERVER_API}/api/index`, {
     method: "POST",
     headers: SERVER_HEADERS,
-    body: JSON.stringify({ blog_id: blogId, posts, source: "extension" }),
+    body: JSON.stringify(body),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
   return resp.json();
@@ -210,7 +212,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const posts = await fetchAllPosts(msg.blogId);
         sendResponse({ ok: true, posts });
       } else if (msg.type === "INDEX_BLOG") {
-        const result = await indexBlog(msg.blogId, msg.posts);
+        const result = await indexBlog(msg.blogId, msg.posts, msg.sessionId || "");
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "SEARCH") {
         const result = await searchRelated(msg.sessionId, msg.blogId, msg.keyword, msg.topN, msg.sort);

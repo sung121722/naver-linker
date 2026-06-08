@@ -118,6 +118,7 @@ class IndexRequest(BaseModel):
     force: bool = False
     posts: list[PostItem] = []   # extension이 직접 수집해서 보낼 때
     source: str = "web"          # "extension" | "web"
+    session_id: str = ""         # 기존 세션 재사용 시 (멀티블로그)
 
 class SearchRequest(BaseModel):
     blog_id: str
@@ -189,8 +190,9 @@ async def index_blog(req: IndexRequest, request: Request):
             raise HTTPException(status_code=404, detail="블로그를 찾을 수 없습니다. ID를 확인해주세요.")
         db.save_posts(blog_id, posts)
 
-    session_id = str(uuid.uuid4())
+    session_id = req.session_id if req.session_id else str(uuid.uuid4())
     db.ensure_user(session_id, blog_id)
+    db.add_user_blog(session_id, blog_id)
     count, plan = db.get_search_count(session_id)
     return {
         "ok": True,
@@ -399,6 +401,16 @@ def get_plan(session_id: str, request: Request):
         client_ip = get_client_ip(request)
         info["search_count"] = db.get_ip_search_count(client_ip)
     return info
+
+
+@app.get("/api/user-blogs/{session_id}")
+def get_user_blogs(session_id: str):
+    """Pro 드롭다운용: 이 세션이 등록한 블로그 목록 반환."""
+    info = db.get_plan_info(session_id)
+    if info["plan"] != "pro":
+        raise HTTPException(status_code=403, detail="Pro 플랜 전용 기능입니다.")
+    blogs = db.get_user_blogs(session_id)
+    return {"blogs": blogs}
 
 
 @app.post("/api/payment/order")
