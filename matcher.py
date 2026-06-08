@@ -64,7 +64,7 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
 
     # 글 목록(post_list)은 캐싱, 키워드 지시문은 매번 새로 전송
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5",
         max_tokens=4096,
         tools=tools,
         tool_choice={"type": "any"},
@@ -151,7 +151,7 @@ def find_duplicates(posts: list, keyword: str, top_n: int = 10) -> dict:
     ]
 
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5",
         max_tokens=2048,
         tools=tools,
         tool_choice={"type": "any"},
