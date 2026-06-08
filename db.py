@@ -98,9 +98,10 @@ def init_db():
     conn.close()
 
 
-MAX_BLOGS_PER_IP = 3
+MAX_BLOGS_PER_IP = 3  # Pro 플랜 IP 한도
+MAX_BLOGS_PER_IP_DEFAULT = 1  # free/light/basic IP 한도
 
-def check_and_record_ip_registration(ip: str, blog_id: str) -> bool:
+def check_and_record_ip_registration(ip: str, blog_id: str, max_blogs: int = MAX_BLOGS_PER_IP_DEFAULT) -> bool:
     """IP당 등록 가능한 blogId 수를 확인하고 기록. 초과 시 False 반환."""
     conn = get_conn()
     cur = conn.cursor()
@@ -113,7 +114,7 @@ def check_and_record_ip_registration(ip: str, blog_id: str) -> bool:
         conn.close()
         return True
 
-    if len(registered) >= MAX_BLOGS_PER_IP:
+    if len(registered) >= max_blogs:
         conn.close()
         return False
 

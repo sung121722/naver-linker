@@ -156,10 +156,18 @@ def parse_blog_id(raw: str) -> str:
 async def index_blog(req: IndexRequest, request: Request):
     blog_id = parse_blog_id(req.blog_id)
     ip = get_client_ip(request)
-    if not db.check_and_record_ip_registration(ip, blog_id):
+
+    # 기존 세션으로 플랜 확인 → 플랜별 IP 한도 결정
+    if req.session_id:
+        _, pre_plan = db.get_search_count(req.session_id)
+    else:
+        pre_plan = "free"
+    ip_limit = db.MAX_BLOGS_PER_IP if pre_plan == "pro" else db.MAX_BLOGS_PER_IP_DEFAULT
+
+    if not db.check_and_record_ip_registration(ip, blog_id, ip_limit):
         raise HTTPException(
             status_code=429,
-            detail=f"하나의 IP에서 최대 {db.MAX_BLOGS_PER_IP}개의 블로그만 등록할 수 있습니다."
+            detail=f"이 플랜은 하나의 IP에서 최대 {ip_limit}개 블로그까지 등록할 수 있습니다."
         )
 
     if req.source == "extension" and req.posts:
