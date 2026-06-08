@@ -97,72 +97,45 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
 
 
 def find_duplicates(posts: list, keyword: str, top_n: int = 10) -> dict:
-    """새 글 키워드와 유사한 기존 글을 찾아 중복 여부 판단"""
-    client = _get_client()
-    post_list = "\n".join(
-        f"{i+1}. {p['title']} | {p['url']} | {p.get('date','날짜미상')}" for i, p in enumerate(posts)
-    )
+    """새 글 키워드와 유사한 기존 글을 찾아 중복 여부 판단 (로컬 처리, API 호출 없음)."""
+    from difflib import SequenceMatcher
 
-    tools = [
-        {
-            "name": "check_duplicates",
-            "description": "새 글과 유사한 기존 글 목록을 반환합니다",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "has_duplicate": {
-                        "type": "boolean",
-                        "description": "유사한 글이 1개 이상 존재하면 true"
-                    },
-                    "similar_posts": {
-                        "type": "array",
-                        "description": "유사도 높은 기존 글 목록 (최대 5개, 없으면 빈 배열)",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "title": {"type": "string", "description": "기존 글 제목"},
-                                "url": {"type": "string", "description": "기존 글 URL"},
-                                "date": {"type": "string", "description": "기존 글 작성일 (원문 그대로)"},
-                                "similarity": {
-                                    "type": "integer",
-                                    "description": "유사도 (0~100 사이 정수)",
-                                    "minimum": 0,
-                                    "maximum": 100
-                                },
-                                "overlap": {"type": "string", "description": "겹치는 내용 한 줄 요약"}
-                            },
-                            "required": ["title", "url", "date", "similarity", "overlap"]
-                        }
-                    }
-                },
-                "required": ["has_duplicate", "similar_posts"]
-            }
-        }
-    ]
+    kw = keyword.lower()
+    kw_words = set(kw.split())
 
-    response = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=2048,
-        tools=tools,
-        tool_choice={"type": "any"},
-        messages=[{
-            "role": "user",
-            "content": [
-                {
-                    "type": "text",
-                    "text": f"아래는 네이버 블로그의 기존 글 목록입니다 (번호. 제목 | URL | 작성일 형식):\n\n{post_list}",
-                    "cache_control": {"type": "ephemeral"}
-                },
-                {
-                    "type": "text",
-                    "text": f'\n\n새로 쓰려는 글의 키워드/주제: "{keyword}"\n\n위 기존 글 중에서 새 글과 주제가 겹치거나 비슷한 글을 찾아주세요.\n유사도가 높은 순서대로 최대 {top_n}개까지만 반환하세요.\n유사한 글이 전혀 없으면 빈 배열을 반환하세요.'
-                }
-            ]
-        }],
-    )
+    scored = []
+    for p in posts:
+        title = p["title"].lower()
 
-    for block in response.content:
-        if block.type == "tool_use" and block.name == "check_duplicates":
-            return block.input
+        # 1) 시퀀스 유사도 (전체 문자열)
+        seq_score = SequenceMatcher(None, kw, title).ratio()
 
-    return {"has_duplicate": False, "similar_posts": []}
+        # 2) 키워드 단어 포함 비율
+        title_words = set(title.split())
+        if kw_words:
+            word_score = len(kw_words & title_words) / len(kw_words)
+        else:
+            word_score = 0.0
+
+        # 3) 키워드 통째로 포함 여부 (substring)
+        exact_bonus = 0.3 if kw in title else 0.0
+
+        combined = min(1.0, seq_score * 0.4 + word_score * 0.4 + exact_bonus)
+        similarity = round(combined * 100)
+
+        if similarity >= 20:
+            scored.append({
+                "title": p["title"],
+                "url": p["url"],
+                "date": p.get("date", ""),
+                "similarity": similarity,
+                "overlap": f"'{keyword}' 관련 내용 포함",
+            })
+
+    scored.sort(key=lambda x: x["similarity"], reverse=True)
+    similar_posts = scored[:top_n]
+
+    return {
+        "has_duplicate": len(similar_posts) > 0,
+        "similar_posts": similar_posts,
+    }
