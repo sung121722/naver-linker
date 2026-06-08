@@ -103,16 +103,6 @@ def find_duplicates(posts: list, keyword: str, top_n: int = 10) -> dict:
         f"{i+1}. {p['title']} | {p['url']} | {p.get('date','날짜미상')}" for i, p in enumerate(posts)
     )
 
-    prompt = f"""아래는 네이버 블로그의 기존 글 목록입니다 (번호. 제목 | URL | 작성일 형식):
-
-{post_list}
-
-새로 쓰려는 글의 키워드/주제: "{keyword}"
-
-위 기존 글 중에서 새 글과 주제가 겹치거나 비슷한 글을 찾아주세요.
-유사도가 높은 순서대로 최대 {top_n}개까지만 반환하세요.
-유사한 글이 전혀 없으면 빈 배열을 반환하세요."""
-
     tools = [
         {
             "name": "check_duplicates",
@@ -155,7 +145,20 @@ def find_duplicates(posts: list, keyword: str, top_n: int = 10) -> dict:
         max_tokens=2048,
         tools=tools,
         tool_choice={"type": "any"},
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"아래는 네이버 블로그의 기존 글 목록입니다 (번호. 제목 | URL | 작성일 형식):\n\n{post_list}",
+                    "cache_control": {"type": "ephemeral"}
+                },
+                {
+                    "type": "text",
+                    "text": f'\n\n새로 쓰려는 글의 키워드/주제: "{keyword}"\n\n위 기존 글 중에서 새 글과 주제가 겹치거나 비슷한 글을 찾아주세요.\n유사도가 높은 순서대로 최대 {top_n}개까지만 반환하세요.\n유사한 글이 전혀 없으면 빈 배열을 반환하세요.'
+                }
+            ]
+        }],
     )
 
     for block in response.content:
