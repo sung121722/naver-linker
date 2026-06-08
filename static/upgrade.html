@@ -39,8 +39,22 @@
       transition: border-color 0.2s, box-shadow 0.2s;
     }
     .plan-card:hover { border-color: #03C75A; box-shadow: 0 4px 20px rgba(3,199,90,0.15); }
+    .plan-card.recommended { border: 2px solid #00C73C; position: relative; }
+
+    .rec-badge {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: #00C73C;
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 10px;
+    }
 
     .plan-name { font-size: 20px; font-weight: 800; color: #212529; margin-bottom: 4px; }
+    .plan-label { font-size: 12px; color: #adb5bd; margin-bottom: 2px; }
     .plan-price {
       font-size: 28px;
       font-weight: 800;
@@ -139,7 +153,8 @@
       <div class="plans">
         <div class="plan-card">
           <div class="plan-name">라이트</div>
-          <div class="plan-price">2,900<span>원/월</span></div>
+          <div class="plan-label">월 구독료</div>
+          <div class="plan-price">2,900<span>원</span></div>
           <ul class="plan-features">
             <li>검색 200회</li>
             <li>중복 감지 포함</li>
@@ -148,9 +163,11 @@
           </ul>
           <button class="pay-btn" data-plan="light">결제하기</button>
         </div>
-        <div class="plan-card">
+        <div class="plan-card recommended">
+          <div class="rec-badge">추천</div>
           <div class="plan-name">베이직</div>
-          <div class="plan-price">6,900<span>원/월</span></div>
+          <div class="plan-label">월 구독료</div>
+          <div class="plan-price">6,900<span>원</span></div>
           <ul class="plan-features">
             <li>검색 500회</li>
             <li>중복 감지 포함</li>
@@ -161,7 +178,8 @@
         </div>
         <div class="plan-card">
           <div class="plan-name">프로</div>
-          <div class="plan-price">11,900<span>원/월</span></div>
+          <div class="plan-label">월 구독료</div>
+          <div class="plan-price">11,900<span>원</span></div>
           <ul class="plan-features">
             <li>검색 1,000회</li>
             <li>중복 감지 포함</li>
