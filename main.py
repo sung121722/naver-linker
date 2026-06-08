@@ -393,8 +393,12 @@ def upgrade_page():
 
 
 @app.get("/api/plan/{session_id}")
-def get_plan(session_id: str):
-    return db.get_plan_info(session_id)
+def get_plan(session_id: str, request: Request):
+    info = db.get_plan_info(session_id)
+    if info["plan"] == "free":
+        client_ip = get_client_ip(request)
+        info["search_count"] = db.get_ip_search_count(client_ip)
+    return info
 
 
 @app.post("/api/payment/order")
