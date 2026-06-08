@@ -19,20 +19,14 @@ BASE_URL        = os.environ.get("BASE_URL", "https://naver-linker.onrender.com"
 DEV_SECRET      = os.environ.get("DEV_SECRET", "")
 
 PLAN_PRICES = {
-    "lite":      2900,
-    "standard":  6900,
-    "starter":   9900,
-    "sub_basic": 8900,
-    "sub_std":   10900,
-    "sub_pro":   12900,
+    "light": 2900,
+    "basic": 6900,
+    "pro":   11900,
 }
 PLAN_NAMES = {
-    "lite":      "라이트 (50회)",
-    "standard":  "스탠다드 (150회)",
-    "starter":   "프로 (300회)",
-    "sub_basic": "구독 베이직 (300회/월)",
-    "sub_std":   "구독 스탠다드 (500회/월)",
-    "sub_pro":   "구독 프로 (750회/월)",
+    "light": "라이트 (200회/월)",
+    "basic": "베이직 (500회/월)",
+    "pro":   "프로 (1,000회/월)",
 }
 
 _DATE_RE   = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")

@@ -19,17 +19,6 @@
     .logo { font-size: 24px; font-weight: 800; color: #03C75A; margin-bottom: 6px; }
     .subtitle { font-size: 14px; color: #868e96; margin-bottom: 32px; }
 
-    .section-label {
-      width: 100%;
-      max-width: 760px;
-      font-size: 13px;
-      font-weight: 700;
-      color: #868e96;
-      letter-spacing: 0.05em;
-      margin: 24px 0 10px;
-      text-transform: uppercase;
-    }
-
     .plans {
       display: flex;
       gap: 12px;
@@ -147,77 +136,39 @@
       </div>`;
   } else {
     mainContent.innerHTML = `
-      <div class="section-label">단발성 구매</div>
       <div class="plans">
         <div class="plan-card">
           <div class="plan-name">라이트</div>
-          <div class="plan-price">2,900<span>원</span></div>
+          <div class="plan-price">2,900<span>원/월</span></div>
           <ul class="plan-features">
-            <li>검색 50회</li>
-            <li>중복 감지 포함</li>
-            <li>링크 자동 삽입</li>
-            <li>만료 없음</li>
-          </ul>
-          <button class="pay-btn" data-plan="lite">결제하기</button>
-        </div>
-        <div class="plan-card">
-          <div class="plan-name">스탠다드</div>
-          <div class="plan-price">6,900<span>원</span></div>
-          <ul class="plan-features">
-            <li>검색 150회</li>
-            <li>중복 감지 포함</li>
-            <li>링크 자동 삽입</li>
-            <li>만료 없음</li>
-          </ul>
-          <button class="pay-btn" data-plan="standard">결제하기</button>
-        </div>
-        <div class="plan-card">
-          <div class="plan-name">프로</div>
-          <div class="plan-price">9,900<span>원</span></div>
-          <ul class="plan-features">
-            <li>검색 300회</li>
-            <li>중복 감지 포함</li>
-            <li>링크 자동 삽입</li>
-            <li>만료 없음</li>
-          </ul>
-          <button class="pay-btn" data-plan="starter">결제하기</button>
-        </div>
-      </div>
-
-      <div class="section-label">월 구독</div>
-      <div class="plans">
-        <div class="plan-card">
-          <div class="plan-name">베이직</div>
-          <div class="plan-price">8,900<span>원/월</span></div>
-          <ul class="plan-features">
-            <li>검색 300회</li>
+            <li>검색 200회</li>
             <li>중복 감지 포함</li>
             <li>링크 자동 삽입</li>
             <li>매월 자동 갱신</li>
           </ul>
-          <button class="pay-btn" data-plan="sub_basic">결제하기</button>
+          <button class="pay-btn" data-plan="light">결제하기</button>
         </div>
         <div class="plan-card">
-          <div class="plan-name">스탠다드</div>
-          <div class="plan-price">10,900<span>원/월</span></div>
+          <div class="plan-name">베이직</div>
+          <div class="plan-price">6,900<span>원/월</span></div>
           <ul class="plan-features">
             <li>검색 500회</li>
             <li>중복 감지 포함</li>
             <li>링크 자동 삽입</li>
             <li>매월 자동 갱신</li>
           </ul>
-          <button class="pay-btn" data-plan="sub_std">결제하기</button>
+          <button class="pay-btn" data-plan="basic">결제하기</button>
         </div>
         <div class="plan-card">
           <div class="plan-name">프로</div>
-          <div class="plan-price">12,900<span>원/월</span></div>
+          <div class="plan-price">11,900<span>원/월</span></div>
           <ul class="plan-features">
-            <li>검색 750회</li>
+            <li>검색 1,000회</li>
             <li>중복 감지 포함</li>
             <li>링크 자동 삽입</li>
             <li>매월 자동 갱신</li>
           </ul>
-          <button class="pay-btn" data-plan="sub_pro">결제하기</button>
+          <button class="pay-btn" data-plan="pro">결제하기</button>
         </div>
       </div>`;
 

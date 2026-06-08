@@ -7,13 +7,10 @@ import psycopg2.extras
 FREE_LIMIT = 5
 
 PLAN_LIMITS = {
-    "free":       FREE_LIMIT,
-    "lite":       50,
-    "standard":   150,
-    "starter":    300,
-    "sub_basic":  300,
-    "sub_std":    500,
-    "sub_pro":    750,
+    "free":    FREE_LIMIT,
+    "light":   200,
+    "basic":   500,
+    "pro":     1000,
 }
 
 
