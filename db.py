@@ -98,6 +98,18 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_at TIMESTAMP")
     except Exception:
         conn.rollback()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_key TEXT")
+    except Exception:
+        conn.rollback()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS customer_key TEXT")
+    except Exception:
+        conn.rollback()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date DATE")
+    except Exception:
+        conn.rollback()
     conn.commit()
     conn.close()
 
@@ -398,6 +410,69 @@ def add_user_blog(session_id: str, blog_id: str, max_blogs: int = 0) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+def save_billing_key(session_id: str, billing_key: str, customer_key: str, plan: str, amount: int):
+    """빌링키 저장 + 플랜 활성화 + 다음 결제일 설정."""
+    from datetime import datetime, timedelta
+    conn = get_conn()
+    cur = conn.cursor()
+    next_date = (datetime.now() + timedelta(days=30)).date()
+    cur.execute("""
+        UPDATE users
+        SET billing_key = %s, customer_key = %s, plan = %s,
+            search_count = 0, reset_at = NOW(), next_billing_date = %s
+        WHERE session_id = %s
+    """, (billing_key, customer_key, plan, next_date, session_id))
+    conn.commit()
+    conn.close()
+
+
+def get_users_due_for_billing():
+    """오늘 결제일이 된 유료 유저 목록 반환."""
+    from datetime import date as date_type
+    conn = get_conn()
+    cur = conn.cursor()
+    today = date_type.today()
+    cur.execute("""
+        SELECT session_id, billing_key, customer_key, plan
+        FROM users
+        WHERE plan != 'free'
+          AND billing_key IS NOT NULL
+          AND next_billing_date <= %s
+    """, (today,))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_next_billing_date(session_id: str):
+    """결제 성공 후 다음 결제일 30일 연장 + 횟수 리셋."""
+    from datetime import datetime, timedelta
+    conn = get_conn()
+    cur = conn.cursor()
+    next_date = (datetime.now() + timedelta(days=30)).date()
+    cur.execute("""
+        UPDATE users
+        SET next_billing_date = %s, search_count = 0, reset_at = NOW()
+        WHERE session_id = %s
+    """, (next_date, session_id))
+    conn.commit()
+    conn.close()
+
+
+def downgrade_to_free(session_id: str):
+    """결제 실패 시 free 플랜으로 다운그레이드."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE users
+        SET plan = 'free', billing_key = NULL, customer_key = NULL,
+            next_billing_date = NULL
+        WHERE session_id = %s
+    """, (session_id,))
+    conn.commit()
+    conn.close()
 
 
 def get_user_blogs(session_id: str) -> list:
