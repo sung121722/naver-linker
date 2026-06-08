@@ -597,6 +597,10 @@ function updateLimitBar() {
   limitBar.style.display = "block";
   usedCount.textContent = state.searchCount;
   limitCount.textContent = state.dailyLimit;
+
+  dupLimitBar.style.display = "block";
+  dupUsedCount.textContent = state.searchCount;
+  dupLimitCount.textContent = state.dailyLimit;
 }
 
 function copyLink(url) {
