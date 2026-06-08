@@ -215,22 +215,19 @@
         errorMsg.style.display = 'none';
 
         try {
-          const res = await fetch(`${BASE_URL}/api/payment/order`, {
+          const res = await fetch(`${BASE_URL}/api/billing/order`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: sessionId, plan }),
           });
           if (!res.ok) throw new Error('주문 생성 실패');
-          const { order_id, amount, client_key, order_name } = await res.json();
+          const { customer_key, client_key } = await res.json();
 
           const tossPayments = TossPayments(client_key);
-          await tossPayments.requestPayment('카드', {
-            amount,
-            orderId: order_id,
-            orderName: order_name,
-            customerName: '네이버 블로거',
-            successUrl: `${BASE_URL}/api/payment/success`,
-            failUrl: `${BASE_URL}/api/payment/fail`,
+          await tossPayments.requestBillingAuth('카드', {
+            customerKey: customer_key,
+            successUrl: `${BASE_URL}/api/billing/success?session_id=${encodeURIComponent(sessionId)}&plan=${plan}`,
+            failUrl: `${BASE_URL}/api/billing/fail`,
           });
         } catch (e) {
           errorMsg.textContent = e.message || '오류가 발생했습니다. 다시 시도해주세요.';
