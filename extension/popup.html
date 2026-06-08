@@ -325,6 +325,19 @@
       white-space: nowrap;
     }
     .delete-blog-btn:hover { background: #ffd6d6; color: #c0392b; }
+    .switch-blog-btn {
+      background: #03C75A;
+      color: white;
+      border: none;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .switch-blog-btn:hover { background: #02a84c; }
+    .switch-blog-btn:disabled { background: #adb5bd; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -373,6 +386,7 @@
     <div class="blog-switcher-label">🔄 계정 전환 (PRO)</div>
     <div class="blog-switcher-row">
       <select id="blogSelect"></select>
+      <button class="switch-blog-btn" id="switchBlogBtn" disabled>전환</button>
       <button class="delete-blog-btn" id="deleteBlogBtn">✕</button>
     </div>
   </div>

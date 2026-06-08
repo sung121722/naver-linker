@@ -41,6 +41,7 @@ const limitCount2 = document.getElementById("limitCount2");
 const copySessionBtn = document.getElementById("copySessionBtn");
 const blogSwitcher = document.getElementById("blogSwitcher");
 const blogSelect = document.getElementById("blogSelect");
+const switchBlogBtn = document.getElementById("switchBlogBtn");
 const deleteBlogBtn = document.getElementById("deleteBlogBtn");
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
@@ -277,15 +278,23 @@ async function loadBlogSwitcher() {
       return;
     }
     blogSelect.innerHTML = blogs
-      .map((id) => `<option value="${id}" ${id === state.blogId ? "selected" : ""}>${id}</option>`)
+      .map((id) => `<option value="${id}" ${id === state.blogId ? "selected" : ""}>${id === state.blogId ? `${id} (현재)` : id}</option>`)
       .join("");
-    // 현재 활성 블로그는 삭제 불가 (✕ 비활성화)
-    deleteBlogBtn.disabled = blogSelect.value === state.blogId;
+    const isActive = blogSelect.value === state.blogId;
+    switchBlogBtn.disabled = isActive;
+    deleteBlogBtn.disabled = isActive;
     blogSwitcher.style.display = "block";
   } catch (_) {}
 }
 
 blogSelect.addEventListener("change", () => {
+  const selectedBlogId = blogSelect.value;
+  const isActive = selectedBlogId === state.blogId;
+  switchBlogBtn.disabled = isActive;
+  deleteBlogBtn.disabled = isActive;
+});
+
+switchBlogBtn.addEventListener("click", () => {
   const newBlogId = blogSelect.value;
   if (!newBlogId || newBlogId === state.blogId) return;
   state.blogId = newBlogId;
@@ -293,8 +302,7 @@ blogSelect.addEventListener("change", () => {
   state.postCount = 0;
   saveState();
   showStatus(`✅ ${newBlogId} 로 전환됨`, "success");
-  // 활성 블로그 선택 시 ✕ 비활성화
-  deleteBlogBtn.disabled = true;
+  loadBlogSwitcher();
 });
 
 deleteBlogBtn.addEventListener("click", async () => {
