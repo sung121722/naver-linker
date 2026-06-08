@@ -25,6 +25,9 @@ const limitCount = document.getElementById("limitCount");
 const dupKeyword = document.getElementById("dupKeyword");
 const dupBtn = document.getElementById("dupBtn");
 const dupResults = document.getElementById("dupResults");
+const dupLimitBar = document.getElementById("dupLimitBar");
+const dupUsedCount = document.getElementById("dupUsedCount");
+const dupLimitCount = document.getElementById("dupLimitCount");
 const copyToast = document.getElementById("copyToast");
 const planBar = document.getElementById("planBar");
 const planBadge = document.getElementById("planBadge");
@@ -341,6 +344,15 @@ document.querySelectorAll(".topn-btn").forEach((btn) => {
   });
 });
 
+let selectedDupTopN = 5;
+document.querySelectorAll(".dup-topn-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".dup-topn-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedDupTopN = parseInt(btn.dataset.n);
+  });
+});
+
 // ── 정렬 버튼 ────────────────────────────────────────────
 let currentResults = [];
 let currentSort = "relevance";
@@ -461,10 +473,23 @@ dupBtn.addEventListener("click", async () => {
       sessionId: state.sessionId,
       blogId: state.blogId,
       keyword,
+      topN: selectedDupTopN,
     });
     if (!res.ok) throw new Error(res.error);
 
     renderDupResults(res.similar_posts || []);
+
+    // 사용 횟수 업데이트 (검색 탭과 동일한 방식)
+    if (res.daily_limit !== undefined) {
+      state.dailyLimit = res.daily_limit;
+      state.searchCount = res.daily_limit - (res.remaining ?? 0);
+      saveState();
+      dupUsedCount.textContent = state.searchCount;
+      dupLimitCount.textContent = state.dailyLimit;
+      dupLimitBar.style.display = "block";
+      updateLimitBar();
+      updatePlanBar();
+    }
   } catch (e) {
     dupResults.innerHTML = `<div class="empty">❌ ${e.message}</div>`;
   } finally {
