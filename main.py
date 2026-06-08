@@ -119,6 +119,7 @@ class IndexRequest(BaseModel):
     posts: list[PostItem] = []   # extension이 직접 수집해서 보낼 때
     source: str = "web"          # "extension" | "web"
     session_id: str = ""         # 기존 세션 재사용 시 (멀티블로그)
+    force_replace: bool = False  # non-pro 블로그 교체 시
 
 class SearchRequest(BaseModel):
     blog_id: str
@@ -165,10 +166,16 @@ async def index_blog(req: IndexRequest, request: Request):
     ip_limit = db.MAX_BLOGS_PER_IP if pre_plan == "pro" else db.MAX_BLOGS_PER_IP_DEFAULT
 
     if not db.check_and_record_ip_registration(ip, blog_id, ip_limit):
-        raise HTTPException(
-            status_code=429,
-            detail=f"이 플랜은 하나의 IP에서 최대 {ip_limit}개 블로그까지 등록할 수 있습니다."
-        )
+        # force_replace: non-pro 유저가 기존 블로그를 새 블로그로 교체
+        if req.force_replace and pre_plan != "pro":
+            db.remove_ip_registration(ip)          # 기존 IP 슬롯 전체 초기화
+            db.clear_user_blogs(req.session_id)    # 기존 user_blogs 초기화
+            db.check_and_record_ip_registration(ip, blog_id, ip_limit)  # 새 블로그 등록
+        else:
+            raise HTTPException(
+                status_code=429,
+                detail=f"이 플랜은 하나의 IP에서 최대 {ip_limit}개 블로그까지 등록할 수 있습니다."
+            )
 
     if req.source == "extension" and req.posts:
         # Extension 모드: 클라이언트가 수집한 posts를 그대로 저장
@@ -421,6 +428,22 @@ def get_user_blogs(session_id: str):
         raise HTTPException(status_code=403, detail="Pro 플랜 전용 기능입니다.")
     blogs = db.get_user_blogs(session_id)
     return {"blogs": blogs}
+
+
+class UnregisterRequest(BaseModel):
+    session_id: str
+    blog_id: str
+
+@app.delete("/api/user-blog")
+def unregister_blog(req: UnregisterRequest, request: Request):
+    """Pro 드롭다운 ✕ 버튼: user_blogs + ip_registrations에서 제거."""
+    info = db.get_plan_info(req.session_id)
+    if info["plan"] != "pro":
+        raise HTTPException(status_code=403, detail="Pro 플랜 전용 기능입니다.")
+    ip = get_client_ip(request)
+    db.remove_user_blog(req.session_id, req.blog_id)
+    db.remove_ip_registration(ip, req.blog_id)
+    return {"ok": True}
 
 
 @app.post("/api/payment/order")

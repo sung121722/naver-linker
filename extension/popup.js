@@ -36,6 +36,7 @@ const usedCount2 = document.getElementById("usedCount2");
 const limitCount2 = document.getElementById("limitCount2");
 const blogSwitcher = document.getElementById("blogSwitcher");
 const blogSelect = document.getElementById("blogSelect");
+const deleteBlogBtn = document.getElementById("deleteBlogBtn");
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
@@ -242,6 +243,8 @@ async function loadBlogSwitcher() {
     blogSelect.innerHTML = blogs
       .map((id) => `<option value="${id}" ${id === state.blogId ? "selected" : ""}>${id}</option>`)
       .join("");
+    // 현재 활성 블로그는 삭제 불가 (✕ 비활성화)
+    deleteBlogBtn.disabled = blogSelect.value === state.blogId;
     blogSwitcher.style.display = "block";
   } catch (_) {}
 }
@@ -254,6 +257,24 @@ blogSelect.addEventListener("change", () => {
   state.postCount = 0;
   saveState();
   showStatus(`✅ ${newBlogId} 로 전환됨`, "success");
+  // 활성 블로그 선택 시 ✕ 비활성화
+  deleteBlogBtn.disabled = true;
+});
+
+deleteBlogBtn.addEventListener("click", async () => {
+  const targetBlogId = blogSelect.value;
+  if (!targetBlogId || targetBlogId === state.blogId) return;
+  if (!confirm(`'${targetBlogId}'를 목록에서 삭제하시겠습니까?`)) return;
+
+  deleteBlogBtn.disabled = true;
+  const res = await sendMsg({ type: "DELETE_BLOG", sessionId: state.sessionId, blogId: targetBlogId });
+  if (!res.ok) {
+    showStatus("❌ 삭제 실패: " + res.error, "error");
+    deleteBlogBtn.disabled = false;
+    return;
+  }
+  await loadBlogSwitcher();
+  showStatus(`🗑 ${targetBlogId} 삭제됨`, "info");
 });
 
 
@@ -261,6 +282,14 @@ blogSelect.addEventListener("change", () => {
 indexBtn.addEventListener("click", async () => {
   const blogId = blogIdInput.value.trim();
   if (!blogId) return;
+
+  // non-pro 유저가 다른 블로그로 변경 시도 → 교체 확인
+  let forceReplace = false;
+  if (state.blogId && state.blogId !== blogId && state.plan !== "pro" && state.sessionId) {
+    const confirmed = confirm(`현재 등록된 '${state.blogId}'가 '${blogId}'로 교체됩니다.\n기존 블로그 슬롯이 초기화됩니다. 계속하시겠습니까?`);
+    if (!confirmed) return;
+    forceReplace = true;
+  }
 
   state.blogId = blogId;
   setIndexing(true);
@@ -279,6 +308,7 @@ indexBtn.addEventListener("click", async () => {
       blogId,
       posts: fetchRes.posts,
       sessionId: state.sessionId || "",
+      forceReplace,
     });
     if (!indexRes.ok) throw new Error(indexRes.error);
 

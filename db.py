@@ -128,6 +128,36 @@ def check_and_record_ip_registration(ip: str, blog_id: str, max_blogs: int = MAX
     return True
 
 
+def remove_ip_registration(ip: str, blog_id: str = ""):
+    """ip_registrations에서 제거. blog_id 없으면 해당 IP 전체 제거."""
+    conn = get_conn()
+    cur = conn.cursor()
+    if blog_id:
+        cur.execute("DELETE FROM ip_registrations WHERE ip = %s AND blog_id = %s", (ip, blog_id))
+    else:
+        cur.execute("DELETE FROM ip_registrations WHERE ip = %s", (ip,))
+    conn.commit()
+    conn.close()
+
+
+def remove_user_blog(session_id: str, blog_id: str):
+    """user_blogs에서 특정 블로그 제거 (Pro ✕ 버튼용)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM user_blogs WHERE session_id = %s AND blog_id = %s", (session_id, blog_id))
+    conn.commit()
+    conn.close()
+
+
+def clear_user_blogs(session_id: str):
+    """세션의 모든 user_blogs 제거 (non-pro 교체 시)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM user_blogs WHERE session_id = %s", (session_id,))
+    conn.commit()
+    conn.close()
+
+
 def ensure_user(session_id: str, blog_id: str):
     conn = get_conn()
     cur = conn.cursor()

@@ -285,8 +285,13 @@
       margin-bottom: 5px;
       letter-spacing: 0.3px;
     }
+    .blog-switcher-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
     .blog-switcher select {
-      width: 100%;
+      flex: 1;
       border: 1px solid #03C75A;
       border-radius: 7px;
       padding: 7px 10px;
@@ -297,6 +302,18 @@
       outline: none;
       cursor: pointer;
     }
+    .delete-blog-btn {
+      background: #e9ecef;
+      color: #868e96;
+      border: none;
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .delete-blog-btn:hover { background: #ffd6d6; color: #c0392b; }
   </style>
 </head>
 <body>
@@ -339,7 +356,10 @@
   <!-- Pro 계정 전환 드롭다운 -->
   <div class="blog-switcher" id="blogSwitcher">
     <div class="blog-switcher-label">🔄 계정 전환 (PRO)</div>
-    <select id="blogSelect"></select>
+    <div class="blog-switcher-row">
+      <select id="blogSelect"></select>
+      <button class="delete-blog-btn" id="deleteBlogBtn">✕</button>
+    </div>
   </div>
 
   <div class="tabs">

@@ -145,13 +145,24 @@ function fmt(d) {
 
 
 // 서버에 posts 저장 후 세션 발급
-async function indexBlog(blogId, posts, existingSessionId = "") {
+async function indexBlog(blogId, posts, existingSessionId = "", forceReplace = false) {
   const body = { blog_id: blogId, posts, source: "extension" };
   if (existingSessionId) body.session_id = existingSessionId;
+  if (forceReplace) body.force_replace = true;
   const resp = await fetch(`${SERVER_API}/api/index`, {
     method: "POST",
     headers: SERVER_HEADERS,
     body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+  return resp.json();
+}
+
+async function deleteBlog(sessionId, blogId) {
+  const resp = await fetch(`${SERVER_API}/api/user-blog`, {
+    method: "DELETE",
+    headers: SERVER_HEADERS,
+    body: JSON.stringify({ session_id: sessionId, blog_id: blogId }),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
   return resp.json();
@@ -212,7 +223,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const posts = await fetchAllPosts(msg.blogId);
         sendResponse({ ok: true, posts });
       } else if (msg.type === "INDEX_BLOG") {
-        const result = await indexBlog(msg.blogId, msg.posts, msg.sessionId || "");
+        const result = await indexBlog(msg.blogId, msg.posts, msg.sessionId || "", msg.forceReplace || false);
+        sendResponse({ ok: true, ...result });
+      } else if (msg.type === "DELETE_BLOG") {
+        const result = await deleteBlog(msg.sessionId, msg.blogId);
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "SEARCH") {
         const result = await searchRelated(msg.sessionId, msg.blogId, msg.keyword, msg.topN, msg.sort);
