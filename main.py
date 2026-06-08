@@ -150,8 +150,9 @@ async def shutdown():
 async def dev_secret_guard(request, call_next):
     # 정적 파일 · 어드민 · 결제 콜백은 키 불필요
     skip = ("/static", "/", "/upgrade", "/api/payment/success",
-            "/api/payment/fail", "/api/billing/success",
-            "/api/billing/fail", "/api/admin")
+            "/api/payment/fail", "/api/payment/order",
+            "/api/billing/success", "/api/billing/fail",
+            "/api/billing/order", "/api/admin")
     if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
         if request.headers.get("X-Dev-Secret") != DEV_SECRET:
             from fastapi.responses import JSONResponse

@@ -375,11 +375,14 @@ def reset_monthly_if_due(session_id: str):
 
 
 def cancel_subscription(session_id: str):
-    """구독 해지: 플랜을 free로 즉시 전환."""
+    """구독 해지: 플랜을 free로 즉시 전환 + 빌링키 삭제 (재청구 방지)."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "UPDATE users SET plan = 'free', search_count = 0 WHERE session_id = %s",
+        """UPDATE users
+           SET plan = 'free', search_count = 0,
+               billing_key = NULL, customer_key = NULL, next_billing_date = NULL
+           WHERE session_id = %s""",
         (session_id,)
     )
     conn.commit()
