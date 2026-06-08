@@ -80,8 +80,10 @@ def normalize_date_srv(raw: str) -> str:
 import db
 import indexer
 import matcher
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 app = FastAPI()
+scheduler = AsyncIOScheduler()
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,6 +94,56 @@ app.add_middleware(
 db.init_db()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+async def run_billing():
+    """매일 결제일이 된 유료 유저 자동 청구."""
+    users = db.get_users_due_for_billing()
+    if not users:
+        return
+
+    credentials = base64.b64encode(f"{TOSS_SECRET_KEY}:".encode()).decode()
+    async with httpx.AsyncClient(timeout=10) as client:
+        for user in users:
+            session_id = user["session_id"]
+            billing_key = user["billing_key"]
+            customer_key = user["customer_key"]
+            plan = user["plan"]
+            amount = PLAN_PRICES.get(plan)
+            if not amount:
+                continue
+
+            order_id = f"NL-renew-{session_id[:12]}-{int(time.time())}"
+            try:
+                resp = await client.post(
+                    f"https://api.tosspayments.com/v1/billing/{billing_key}",
+                    headers={"Authorization": f"Basic {credentials}", "Content-Type": "application/json"},
+                    json={
+                        "customerKey": customer_key,
+                        "amount": amount,
+                        "orderId": order_id,
+                        "orderName": PLAN_NAMES[plan],
+                    },
+                )
+                if resp.status_code == 200:
+                    db.update_next_billing_date(session_id)
+                else:
+                    # 결제 실패 → free로 다운그레이드
+                    db.downgrade_to_free(session_id)
+            except Exception:
+                db.downgrade_to_free(session_id)
+
+
+@app.on_event("startup")
+async def startup():
+    # 매일 오전 9시(KST) = UTC 0시 실행
+    scheduler.add_job(run_billing, "cron", hour=0, minute=0)
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    scheduler.shutdown()
 
 
 @app.middleware("http")

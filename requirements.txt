@@ -5,6 +5,7 @@ httpx
 anthropic
 python-dotenv
 psycopg2-binary
+apscheduler
 
 # test harness
 pytest
