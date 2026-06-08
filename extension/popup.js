@@ -38,6 +38,7 @@ const upgradeBtn = document.getElementById("upgradeBtn");
 const cancelBtn = document.getElementById("cancelBtn");
 const usedCount2 = document.getElementById("usedCount2");
 const limitCount2 = document.getElementById("limitCount2");
+const copySessionBtn = document.getElementById("copySessionBtn");
 const blogSwitcher = document.getElementById("blogSwitcher");
 const blogSelect = document.getElementById("blogSelect");
 const deleteBlogBtn = document.getElementById("deleteBlogBtn");
@@ -231,6 +232,11 @@ upgradeBtn.addEventListener("click", () => {
   chrome.tabs.create({
     url: `${SERVER_URL}/upgrade?session_id=${state.sessionId}`,
   });
+});
+
+copySessionBtn.addEventListener("click", () => {
+  if (!state.sessionId) return;
+  navigator.clipboard.writeText(state.sessionId).then(() => showToast("세션 ID 복사됨!"));
 });
 
 cancelBtn.addEventListener("click", async () => {
