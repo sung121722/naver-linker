@@ -35,6 +35,7 @@ const planInfo = document.getElementById("planInfo");
 const planSub = document.getElementById("planSub");
 const planActions = document.getElementById("planActions");
 const upgradeBtn = document.getElementById("upgradeBtn");
+const cancelBtn = document.getElementById("cancelBtn");
 const usedCount2 = document.getElementById("usedCount2");
 const limitCount2 = document.getElementById("limitCount2");
 const blogSwitcher = document.getElementById("blogSwitcher");
@@ -197,8 +198,10 @@ function updatePlanBar() {
     planSub.textContent = ` · ${remaining}회 남음`;
   }
 
-  // 무료 플랜일 때만 업그레이드 행 표시
-  planActions.style.display = plan === "free" ? "flex" : "none";
+  // 무료: 업그레이드 버튼 / 유료: 해지 버튼
+  upgradeBtn.style.display = plan === "free" ? "block" : "none";
+  cancelBtn.style.display = plan !== "free" ? "block" : "none";
+  planActions.style.display = "flex";
 
   // Pro 플랜일 때만 계정 전환 드롭다운 표시
   if (plan === "pro") {
@@ -228,6 +231,30 @@ upgradeBtn.addEventListener("click", () => {
   chrome.tabs.create({
     url: `${SERVER_URL}/upgrade?session_id=${state.sessionId}`,
   });
+});
+
+cancelBtn.addEventListener("click", async () => {
+  if (!confirm(`구독을 해지하면 즉시 무료 플랜으로 전환됩니다.\n남은 기간 환불은 불가합니다. 계속하시겠습니까?`)) return;
+  cancelBtn.disabled = true;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Dev-Secret": DEV_SECRET },
+      body: JSON.stringify({ session_id: state.sessionId }),
+    });
+    if (!res.ok) throw new Error("해지 실패");
+    state.plan = "free";
+    state.searchCount = 0;
+    state.dailyLimit = 5;
+    saveState();
+    updatePlanBar();
+    updateLimitBar();
+    showStatus("구독이 해지되었습니다. 무료 플랜으로 전환됩니다.", "info");
+  } catch (e) {
+    showStatus("❌ 해지 실패: " + e.message, "error");
+  } finally {
+    cancelBtn.disabled = false;
+  }
 });
 
 async function loadBlogSwitcher() {

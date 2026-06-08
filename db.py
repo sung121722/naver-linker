@@ -94,6 +94,10 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free'")
     except Exception:
         conn.rollback()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_at TIMESTAMP")
+    except Exception:
+        conn.rollback()
     conn.commit()
     conn.close()
 
@@ -307,7 +311,7 @@ def confirm_payment(order_id: str, payment_key: str):
         (payment_key, order_id)
     )
     cur.execute(
-        "UPDATE users SET plan = %s, search_count = 0 WHERE session_id = %s",
+        "UPDATE users SET plan = %s, search_count = 0, reset_at = NOW() WHERE session_id = %s",
         (row["plan"], row["session_id"])
     )
     conn.commit()
@@ -337,6 +341,37 @@ def get_blog(blog_id: str):
     row = cur.fetchone()
     conn.close()
     return row
+
+
+def reset_monthly_if_due(session_id: str):
+    """유료 플랜 30일 주기 검색 횟수 자동 리셋 (lazy 방식)."""
+    from datetime import datetime, timedelta
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT plan, reset_at FROM users WHERE session_id = %s", (session_id,))
+    row = cur.fetchone()
+    if not row or row["plan"] == "free" or not row["reset_at"]:
+        conn.close()
+        return
+    if datetime.now() >= row["reset_at"] + timedelta(days=30):
+        cur.execute(
+            "UPDATE users SET search_count = 0, reset_at = NOW() WHERE session_id = %s",
+            (session_id,)
+        )
+        conn.commit()
+    conn.close()
+
+
+def cancel_subscription(session_id: str):
+    """구독 해지: 플랜을 free로 즉시 전환."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET plan = 'free', search_count = 0 WHERE session_id = %s",
+        (session_id,)
+    )
+    conn.commit()
+    conn.close()
 
 
 MAX_BLOGS_PRO = 3

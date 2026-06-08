@@ -237,6 +237,7 @@ async def search(req: SearchRequest, request: Request):
     session_id = req.session_id
     client_ip = get_client_ip(request)
 
+    db.reset_monthly_if_due(session_id)
     count, plan = db.get_search_count(session_id)
 
     limit = db.get_limit(plan)
@@ -293,6 +294,7 @@ async def duplicate(req: DuplicateRequest, request: Request):
     session_id = req.session_id
     client_ip = get_client_ip(request)
 
+    db.reset_monthly_if_due(session_id)
     count, plan = db.get_search_count(session_id)
 
     limit = db.get_limit(plan)
@@ -413,6 +415,7 @@ def upgrade_page():
 
 @app.get("/api/plan/{session_id}")
 def get_plan(session_id: str, request: Request):
+    db.reset_monthly_if_due(session_id)
     info = db.get_plan_info(session_id)
     if info["plan"] == "free":
         client_ip = get_client_ip(request)
@@ -444,6 +447,19 @@ def unregister_blog(req: UnregisterRequest, request: Request):
     db.remove_user_blog(req.session_id, req.blog_id)
     db.remove_ip_registration(ip, req.blog_id)
     return {"ok": True}
+
+
+class CancelRequest(BaseModel):
+    session_id: str
+
+@app.post("/api/cancel")
+def cancel_plan(req: CancelRequest):
+    """구독 해지: 플랜을 즉시 free로 전환."""
+    info = db.get_plan_info(req.session_id)
+    if info["plan"] == "free":
+        raise HTTPException(status_code=400, detail="이미 무료 플랜입니다.")
+    db.cancel_subscription(req.session_id)
+    return {"ok": True, "plan": "free"}
 
 
 @app.post("/api/payment/order")
