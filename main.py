@@ -443,6 +443,36 @@ def admin_stats():
     cur.execute("SELECT session_id, search_count, plan, created_at FROM users ORDER BY search_count DESC LIMIT 10")
     top_users = cur.fetchall()
 
+    # 플랜별 유저 수
+    cur.execute("SELECT plan, COUNT(*) AS cnt FROM users GROUP BY plan ORDER BY cnt DESC")
+    plan_dist = cur.fetchall()
+
+    # 월별 신규 유저 (최근 6개월)
+    cur.execute("""
+        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month, COUNT(*) AS cnt
+        FROM users
+        WHERE created_at IS NOT NULL
+        GROUP BY 1 ORDER BY 1 DESC LIMIT 6
+    """)
+    monthly_new = cur.fetchall()
+
+    # 이탈 시점: 검색 횟수 구간별 유저 수
+    cur.execute("""
+        SELECT
+            CASE
+                WHEN search_count = 0    THEN '0회 (미사용)'
+                WHEN search_count <= 3   THEN '1~3회'
+                WHEN search_count <= 10  THEN '4~10회'
+                WHEN search_count <= 30  THEN '11~30회'
+                ELSE '31회 이상'
+            END AS 구간,
+            COUNT(*) AS cnt
+        FROM users
+        GROUP BY 1
+        ORDER BY MIN(search_count)
+    """)
+    retention = cur.fetchall()
+
     conn.close()
 
     return {
@@ -452,6 +482,9 @@ def admin_stats():
             "등록_블로그수": total_blogs,
             "총_포스트수": total_posts,
         },
+        "플랜별_유저수": [{"플랜": r["plan"] or "free", "유저수": r["cnt"]} for r in plan_dist],
+        "월별_신규유저": [{"월": r["month"], "신규": r["cnt"]} for r in monthly_new],
+        "이탈_시점": [{"구간": r["구간"], "유저수": r["cnt"]} for r in retention],
         "top_ip_사용자": [{"ip": r["ip"], "검색수": r["search_count"]} for r in top_ips],
         "최근_블로그": [{"blog_id": r["blog_id"], "글수": r["post_count"], "등록일": r["indexed_at"]} for r in top_blogs],
         "top_유저": [{"session": r["session_id"][:8]+"...", "검색수": r["search_count"], "플랜": r["plan"], "가입일": str(r["created_at"])} for r in top_users],
