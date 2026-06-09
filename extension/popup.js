@@ -195,7 +195,7 @@ function updatePlanBar() {
   // 서브 텍스트 (잔여 횟수 강조)
   const remaining = Math.max(0, limit - used);
   if (plan === "free") {
-    planSub.textContent = ` · 오늘 ${remaining}회 남음`;
+    planSub.textContent = ` · 이번 달 ${remaining}회 남음`;
   } else {
     planSub.textContent = ` · ${remaining}회 남음`;
   }
@@ -446,7 +446,7 @@ async function doSearch(keyword) {
     renderSearchResults(currentResults);
   } catch (e) {
     const msg = e.message.includes("402")
-      ? "오늘 무료 사용 횟수(5회)를 모두 사용했습니다.<br>내일 자정에 초기화됩니다."
+      ? "이번 달 무료 사용 횟수(30회)를 모두 사용했습니다.<br>다음 달에 초기화됩니다."
       : e.message;
     searchResults.innerHTML = `<div class="empty">❌ ${msg}</div>`;
   } finally {

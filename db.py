@@ -4,7 +4,7 @@ import psycopg2
 import psycopg2.extras
 
 
-FREE_LIMIT = 5
+FREE_LIMIT = 30
 
 PLAN_LIMITS = {
     "free":    FREE_LIMIT,
@@ -206,7 +206,7 @@ def get_limit(plan: str) -> int:
 
 
 def get_ip_search_count(ip: str) -> int:
-    today = date.today().isoformat()
+    this_month = date.today().strftime("%Y-%m")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT search_count, reset_date FROM ip_searches WHERE ip = %s", (ip,))
@@ -214,14 +214,15 @@ def get_ip_search_count(ip: str) -> int:
     conn.close()
     if not row:
         return 0
-    # 날짜가 바뀌면 0으로 초기화
-    if row["reset_date"] != today:
+    # 월이 바뀌면 0으로 초기화
+    if (row["reset_date"] or "")[:7] != this_month:
         return 0
     return row["search_count"]
 
 
 def increment_ip_search(ip: str):
     today = date.today().isoformat()
+    this_month = date.today().strftime("%Y-%m")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -229,11 +230,11 @@ def increment_ip_search(ip: str):
         VALUES (%s, 1, %s)
         ON CONFLICT (ip) DO UPDATE SET
             search_count = CASE
-                WHEN ip_searches.reset_date = %s THEN ip_searches.search_count + 1
+                WHEN LEFT(ip_searches.reset_date, 7) = %s THEN ip_searches.search_count + 1
                 ELSE 1
             END,
             reset_date = %s
-    """, (ip, today, today, today))
+    """, (ip, today, this_month, today))
     conn.commit()
     conn.close()
 
