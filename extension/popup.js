@@ -471,7 +471,7 @@ function renderSearchResults(results) {
     return;
   }
   searchResults.innerHTML = results.map((r) => {
-    const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}">📎 삽입</button>`;
+    const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}" title="에디터에 링크를 바로 삽입합니다 (깔끔하게 카드만 표시)">📎 삽입</button>`;
     return `
       <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
         <div class="title">
@@ -480,7 +480,7 @@ function renderSearchResults(results) {
         <div class="meta-row">
           <div class="action-btns">
             ${insertBtn}
-            <button class="copy-btn" data-url="${r.url}">🔗 복사</button>
+            <button class="copy-btn" data-url="${r.url}" title="URL을 클립보드에 복사합니다 (붙여넣기 시 URL 텍스트 + 카드가 함께 표시됩니다)">🔗 복사</button>
           </div>
         </div>
       </div>`;
