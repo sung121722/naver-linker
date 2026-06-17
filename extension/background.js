@@ -175,7 +175,10 @@ async function searchRelated(sessionId, blogId, keyword, topN = 5, sort = "relev
     headers: SERVER_HEADERS,
     body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword, top_n: topN, sort }),
   });
-  if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `Server error: ${resp.status}`);
+  }
   return resp.json();
 }
 

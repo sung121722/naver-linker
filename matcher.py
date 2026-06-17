@@ -64,7 +64,7 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
 
     # 글 목록(post_list)은 캐싱, 키워드 지시문은 매번 새로 전송
     response = client.messages.create(
-        model="claude-haiku-4-5",
+        model="claude-haiku-4-5-20251001",
         max_tokens=4096,
         tools=tools,
         tool_choice={"type": "any"},
