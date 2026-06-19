@@ -425,11 +425,10 @@ async function doSearch(keyword) {
   latestResults = [];
 
   try {
-    // 관련순(Claude) + 최신순(DB) 병렬 요청
-    const [relRes, latRes] = await Promise.all([
-      sendMsg({ type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId, keyword, topN: selectedTopN, sort: "relevance" }),
-      sendMsg({ type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId, keyword, topN: selectedTopN, sort: "latest" }),
-    ]);
+    const relRes = await sendMsg({
+      type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId,
+      keyword, topN: selectedTopN, sort: "relevance",
+    });
 
     if (!relRes.ok) throw new Error(relRes.error);
 
@@ -439,7 +438,8 @@ async function doSearch(keyword) {
     updateLimitBar();
 
     relevanceResults = relRes.results || [];
-    latestResults = latRes.ok ? (latRes.results || []) : [];
+    // 최신순 = 관련순 결과를 날짜 내림차순 재정렬 (별도 서버 요청 없음)
+    latestResults = [...relevanceResults].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 
     currentResults = currentSort === "latest" ? latestResults : relevanceResults;
     sortRow.style.display = currentResults.length ? "flex" : "none";
