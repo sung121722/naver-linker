@@ -391,6 +391,18 @@ const selectedDupTopN = 10;
 let currentResults = [];
 let currentSort = "relevance";
 const sortRow = document.getElementById("sortRow");
+const sortHint = document.getElementById("sortHint");
+const sortHintText = document.getElementById("sortHintText");
+
+const SORT_HINTS = {
+  relevance: "🤖 AI가 의미적으로 관련된 글 추천 — 키워드가 제목에 없어도 나올 수 있어요",
+  latest:    "🕐 제목에 키워드가 포함된 글 중 최신순 — 결과가 적을 수 있어요",
+};
+
+function updateSortHint(sort) {
+  sortHintText.textContent = SORT_HINTS[sort] || "";
+  sortHint.style.display = "block";
+}
 
 document.querySelectorAll(".sort-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -398,6 +410,7 @@ document.querySelectorAll(".sort-btn").forEach((btn) => {
     document.querySelectorAll(".sort-btn").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     currentSort = btn.dataset.sort;
+    updateSortHint(currentSort);
     const cached = currentSort === "latest" ? latestResults : relevanceResults;
     if (cached.length) {
       currentResults = cached;
@@ -418,10 +431,11 @@ async function doSearch(keyword) {
   latestResults = [];
 
   try {
-    const relRes = await sendMsg({
-      type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId,
-      keyword, topN: selectedTopN, sort: "relevance",
-    });
+    // 관련순(Claude) + 최신순(DB) 병렬 요청
+    const [relRes, latRes] = await Promise.all([
+      sendMsg({ type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId, keyword, topN: selectedTopN, sort: "relevance" }),
+      sendMsg({ type: "SEARCH", sessionId: state.sessionId, blogId: state.blogId, keyword, topN: selectedTopN, sort: "latest" }),
+    ]);
 
     if (!relRes.ok) throw new Error(relRes.error);
 
@@ -431,8 +445,7 @@ async function doSearch(keyword) {
     updateLimitBar();
 
     relevanceResults = relRes.results || [];
-    // 최신순 = 관련순 결과를 날짜 내림차순 재정렬 (별도 서버 요청 없음)
-    latestResults = [...relevanceResults].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    latestResults = latRes.ok ? (latRes.results || []) : [];
 
     currentResults = currentSort === "latest" ? latestResults : relevanceResults;
     sortRow.style.display = currentResults.length ? "flex" : "none";
