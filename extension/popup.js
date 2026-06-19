@@ -385,14 +385,7 @@ document.querySelectorAll(".topn-btn").forEach((btn) => {
   });
 });
 
-let selectedDupTopN = 5;
-document.querySelectorAll(".dup-topn-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".dup-topn-btn").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    selectedDupTopN = parseInt(btn.dataset.n);
-  });
-});
+const selectedDupTopN = 10;
 
 // ── 정렬 버튼 ────────────────────────────────────────────
 let currentResults = [];
