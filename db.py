@@ -15,7 +15,7 @@ PLAN_LIMITS = {
 
 
 def get_conn():
-    url = os.environ.get("DATABASE_URL", "")
+    url = os.environ.get("SUPABASE_URL") or os.environ.get("DATABASE_URL", "")
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
     return psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
