@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>네이버 내부링크 도우미</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+      background: #f8f9fa;
+      color: #212529;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+    .wrap { max-width: 600px; text-align: center; }
+    .icon { font-size: 64px; margin-bottom: 24px; }
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 12px; color: #212529; }
+    .sub { font-size: 16px; color: #868e96; margin-bottom: 32px; line-height: 1.6; }
+    .btn {
+      display: inline-block;
+      background: #03C75A;
+      color: white;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px 32px;
+      border-radius: 10px;
+      text-decoration: none;
+      margin: 8px;
+    }
+    .btn-outline {
+      background: white;
+      color: #212529;
+      border: 2px solid #dee2e6;
+    }
+    .features {
+      display: flex;
+      gap: 16px;
+      margin-top: 48px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .feature {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      width: 160px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .feature .emoji { font-size: 28px; margin-bottom: 8px; }
+    .feature p { font-size: 13px; color: #495057; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="icon">🔗</div>
+  <h1>네이버 내부링크 도우미</h1>
+  <p class="sub">네이버 블로그 글을 분석하여<br>관련 글 추천 및 중복 감지를 자동으로 도와드립니다.</p>
+  <a href="https://chromewebstore.google.com" class="btn">크롬 웹스토어에서 설치</a>
+  <a href="privacy.html" class="btn btn-outline">개인정보처리방침</a>
+  <div class="features">
+    <div class="feature">
+      <div class="emoji">🔍</div>
+      <p>관련 글 자동 추천</p>
+    </div>
+    <div class="feature">
+      <div class="emoji">🔄</div>
+      <p>중복 글 감지</p>
+    </div>
+    <div class="feature">
+      <div class="emoji">⚡</div>
+      <p>AI 기반 분석</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
