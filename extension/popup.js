@@ -239,7 +239,7 @@ async function fetchPlan() {
 
 upgradeBtn.addEventListener("click", () => {
   chrome.tabs.create({
-    url: `${SERVER_URL}/upgrade?session_id=${state.sessionId}`,
+    url: `https://sung121722.github.io/naver-linker/upgrade.html?session_id=${state.sessionId}`,
   });
 });
 
