@@ -152,7 +152,8 @@ async def dev_secret_guard(request, call_next):
     skip = ("/static", "/", "/upgrade", "/api/payment/success",
             "/api/payment/fail", "/api/payment/order",
             "/api/billing/success", "/api/billing/fail",
-            "/api/billing/order", "/api/billing/webhook", "/api/admin")
+            "/api/billing/order", "/api/billing/webhook", "/api/admin",
+            "/api/ping")
     if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
         if request.headers.get("X-Dev-Secret") != DEV_SECRET:
             from fastapi.responses import JSONResponse
@@ -507,6 +508,17 @@ def debug_env():
 @app.get("/api/session")
 def new_session():
     return {"session_id": str(uuid.uuid4())}
+
+
+@app.get("/api/ping")
+def ping():
+    """UptimeRobot 헬스체크 — DB 쿼리 포함하여 Supabase 비활성 정지 방지."""
+    conn = db.get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT 1")
+    cur.fetchone()
+    conn.close()
+    return {"ok": True}
 
 
 # ── Payment ──────────────────────────────────────────────
