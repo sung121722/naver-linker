@@ -492,7 +492,7 @@ def save_email(session_id: str, email: str):
     conn.close()
 
 
-def get_session_by_email(email: str) -> dict | None:
+def get_session_by_email(email: str):
     """이메일로 유저 조회 (세션 복구용)."""
     conn = get_conn()
     cur = conn.cursor()

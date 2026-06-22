@@ -601,7 +601,10 @@ def recover_session(req: RecoverRequest):
       </p>
     </div>
     """
-    _send_email(req.email, "[내부링크 도우미] 세션 ID 복구", body)
+    try:
+        _send_email(req.email, "[내부링크 도우미] 세션 ID 복구", body)
+    except Exception:
+        raise HTTPException(status_code=500, detail="이메일 발송에 실패했습니다. 관리자에게 문의해주세요.")
     return {"ok": True}
 
 
