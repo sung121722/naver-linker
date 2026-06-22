@@ -5,6 +5,7 @@ import re
 import time
 import base64
 import httpx
+from collections import defaultdict
 from datetime import date as date_cls
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -144,6 +145,28 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     scheduler.shutdown()
+
+
+# IP당 분당 60회 슬라이딩 윈도우 레이트 리밋
+_rl_store: dict[str, list[float]] = defaultdict(list)
+_RL_MAX = 60
+_RL_WINDOW = 60.0
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    from fastapi.responses import JSONResponse
+    if request.url.path.startswith("/api/"):
+        skip_rl = ("/api/admin", "/api/ping", "/api/billing/webhook")
+        if not any(request.url.path.startswith(p) for p in skip_rl):
+            forwarded = request.headers.get("X-Forwarded-For")
+            ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+            now = time.time()
+            window_start = now - _RL_WINDOW
+            _rl_store[ip] = [t for t in _rl_store[ip] if t > window_start]
+            if len(_rl_store[ip]) >= _RL_MAX:
+                return JSONResponse({"detail": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."}, status_code=429)
+            _rl_store[ip].append(now)
+    return await call_next(request)
 
 
 @app.middleware("http")
