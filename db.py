@@ -479,6 +479,21 @@ def downgrade_to_free(session_id: str):
     conn.close()
 
 
+def activate_plan_by_customer_key(customer_key: str, plan: str):
+    """웹훅 수신 시 customerKey로 유저 조회 후 플랜 활성화 (브라우저 닫힘 안전장치)."""
+    from datetime import datetime, timedelta
+    conn = get_conn()
+    cur = conn.cursor()
+    next_date = (datetime.now() + timedelta(days=30)).date()
+    cur.execute("""
+        UPDATE users
+        SET plan = %s, search_count = 0, reset_at = NOW(), next_billing_date = %s
+        WHERE customer_key = %s AND plan = 'free'
+    """, (plan, next_date, customer_key))
+    conn.commit()
+    conn.close()
+
+
 def get_user_blogs(session_id: str) -> list:
     """세션이 등록한 블로그 목록 반환 (최신 등록 순)."""
     conn = get_conn()

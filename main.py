@@ -152,7 +152,7 @@ async def dev_secret_guard(request, call_next):
     skip = ("/static", "/", "/upgrade", "/api/payment/success",
             "/api/payment/fail", "/api/payment/order",
             "/api/billing/success", "/api/billing/fail",
-            "/api/billing/order", "/api/admin")
+            "/api/billing/order", "/api/billing/webhook", "/api/admin")
     if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
         if request.headers.get("X-Dev-Secret") != DEV_SECRET:
             from fastapi.responses import JSONResponse
@@ -788,6 +788,25 @@ def billing_fail(code: str = "", message: str = ""):
   <p>다시 시도하거나 다른 카드를 사용해보세요.</p>
   <button onclick="history.back()">뒤로 가기</button>
 </div></body></html>"""
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request):
+    """토스페이먼츠 웹훅 — 결제 완료 시 플랜 활성화 안전장치."""
+    payload = await request.json()
+    event_type = payload.get("eventType", "")
+
+    if event_type == "PAYMENT_STATUS_CHANGED":
+        data = payload.get("data", {})
+        if data.get("status") == "DONE":
+            customer_key = data.get("customerKey", "")
+            order_name = data.get("orderName", "")
+            plan_map = {"라이트 플랜": "light", "베이직 플랜": "basic", "프로 플랜": "pro"}
+            resolved_plan = plan_map.get(order_name)
+            if customer_key and resolved_plan:
+                db.activate_plan_by_customer_key(customer_key, resolved_plan)
+
+    return {"ok": True}
 
 
 @app.get("/api/status/{blog_id}")
