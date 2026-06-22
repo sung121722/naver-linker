@@ -10,6 +10,7 @@ let state = {
   dailyLimit: 5,
   indexedAt: 0,
   emailRegistered: false,
+  checkedCount: 0,
 };
 
 // DOM
@@ -48,11 +49,28 @@ const blogSwitcher = document.getElementById("blogSwitcher");
 const blogSelect = document.getElementById("blogSelect");
 const switchBlogBtn = document.getElementById("switchBlogBtn");
 const deleteBlogBtn = document.getElementById("deleteBlogBtn");
+const diagCard = document.getElementById("diagCard");
+const diagTotal = document.getElementById("diagTotal");
+const diagChecked = document.getElementById("diagChecked");
+const diagBar = document.getElementById("diagBar");
+const diagMsg = document.getElementById("diagMsg");
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "AUTO_SUGGEST") {
     showAutoSuggest(msg.keyword, msg.results);
+  }
+  if (msg.type === "EDITOR_TITLE") {
+    if (featureSection.style.display === "none") return;
+    // 관련 글 탭으로 전환
+    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+    document.querySelector('[data-tab="search"]').classList.add("active");
+    document.getElementById("tab-search").classList.add("active");
+    // 제목을 키워드로 자동 입력
+    searchKeyword.value = msg.keyword;
+    searchKeyword.focus();
+    showToast("📝 검색 버튼을 눌러 내부링크를 찾아보세요!");
   }
 });
 
@@ -170,6 +188,7 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
       featureSection.style.display = "block";
       updateLimitBar();
       updatePlanBar();
+      updateDiagCard();
       // 팝업 열 때마다 플랜 서버 동기화 (결제 후 자동 반영)
       fetchPlan();
       silentSync(state.blogId);
@@ -179,6 +198,27 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
 
 function saveState() {
   chrome.storage.local.set({ [STORAGE_KEY]: state });
+}
+
+// ── 진단 카드 ─────────────────────────────────────────────
+function updateDiagCard() {
+  if (!state.postCount) return;
+  const total = state.postCount;
+  const checked = state.checkedCount || 0;
+  const pct = Math.min(100, Math.round((checked / total) * 100));
+  diagTotal.textContent = total;
+  diagChecked.textContent = checked;
+  diagBar.style.width = pct + "%";
+  if (pct === 0) {
+    diagMsg.textContent = "키워드 검색마다 점검 완료 수가 올라갑니다.";
+  } else if (pct < 30) {
+    diagMsg.textContent = `${pct}% 점검 완료 — 계속 검색해보세요!`;
+  } else if (pct < 70) {
+    diagMsg.textContent = `${pct}% 점검 완료 — 잘 하고 있어요 👍`;
+  } else {
+    diagMsg.textContent = `${pct}% 점검 완료 — 내부링크 최적화 우수!`;
+  }
+  diagCard.style.display = "block";
 }
 
 // ── 플랜 바 ──────────────────────────────────────────────
@@ -402,10 +442,12 @@ indexBtn.addEventListener("click", async () => {
     saveState();
 
     state.indexedAt = Date.now();
+    state.checkedCount = 0;
     showStatus(`✅ ${blogId} — 글 ${state.postCount}개 등록 완료`, "success");
     featureSection.style.display = "block";
     updateLimitBar();
     updatePlanBar();
+    updateDiagCard();
   } catch (e) {
     showStatus(`❌ 오류: ${e.message}`, "error");
   } finally {
@@ -484,6 +526,10 @@ async function doSearch(keyword) {
 
     relevanceResults = relRes.results || [];
     latestResults = latRes.ok ? (latRes.results || []) : [];
+
+    state.checkedCount = (state.checkedCount || 0) + 1;
+    saveState();
+    updateDiagCard();
 
     currentResults = currentSort === "latest" ? latestResults : relevanceResults;
     sortRow.style.display = currentResults.length ? "flex" : "none";
