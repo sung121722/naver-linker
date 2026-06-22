@@ -9,6 +9,7 @@ let state = {
   searchCount: 0,
   dailyLimit: 5,
   indexedAt: 0,
+  emailRegistered: false,
 };
 
 // DOM
@@ -39,6 +40,10 @@ const cancelBtn = document.getElementById("cancelBtn");
 const usedCount2 = document.getElementById("usedCount2");
 const limitCount2 = document.getElementById("limitCount2");
 const copySessionBtn = document.getElementById("copySessionBtn");
+const emailBanner = document.getElementById("emailBanner");
+const emailBannerInput = document.getElementById("emailBannerInput");
+const emailBannerBtn = document.getElementById("emailBannerBtn");
+const emailBannerMsg = document.getElementById("emailBannerMsg");
 const blogSwitcher = document.getElementById("blogSwitcher");
 const blogSelect = document.getElementById("blogSelect");
 const switchBlogBtn = document.getElementById("switchBlogBtn");
@@ -205,6 +210,9 @@ function updatePlanBar() {
   cancelBtn.style.display = plan !== "free" ? "block" : "none";
   planActions.style.display = "flex";
 
+  // 유료 플랜 + 이메일 미등록 시 배너
+  emailBanner.style.display = (plan !== "free" && !state.emailRegistered) ? "block" : "none";
+
   // Pro 플랜일 때만 계정 전환 드롭다운 표시
   if (plan === "pro") {
     loadBlogSwitcher();
@@ -238,6 +246,36 @@ upgradeBtn.addEventListener("click", () => {
 copySessionBtn.addEventListener("click", () => {
   if (!state.sessionId) return;
   navigator.clipboard.writeText(state.sessionId).then(() => showToast("세션 ID 복사됨!"));
+});
+
+emailBannerBtn.addEventListener("click", async () => {
+  const email = emailBannerInput.value.trim();
+  if (!email || !email.includes("@")) return;
+  emailBannerBtn.disabled = true;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/register-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Dev-Secret": DEV_SECRET },
+      body: JSON.stringify({ session_id: state.sessionId, email }),
+    });
+    emailBannerMsg.style.display = "block";
+    if (res.ok) {
+      state.emailRegistered = true;
+      saveState();
+      emailBannerMsg.style.color = "#087f3d";
+      emailBannerMsg.textContent = "✅ 등록 완료! 분실 시 이 이메일로 복구 가능합니다.";
+      setTimeout(() => { emailBanner.style.display = "none"; }, 2000);
+    } else {
+      emailBannerMsg.style.color = "#c0392b";
+      emailBannerMsg.textContent = "등록 실패. 다시 시도해주세요.";
+      emailBannerBtn.disabled = false;
+    }
+  } catch (_) {
+    emailBannerMsg.style.display = "block";
+    emailBannerMsg.style.color = "#c0392b";
+    emailBannerMsg.textContent = "오류가 발생했습니다.";
+    emailBannerBtn.disabled = false;
+  }
 });
 
 cancelBtn.addEventListener("click", async () => {

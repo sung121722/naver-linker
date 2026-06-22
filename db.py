@@ -110,6 +110,10 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date DATE")
     except Exception:
         conn.rollback()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT")
+    except Exception:
+        conn.rollback()
     conn.commit()
     conn.close()
 
@@ -477,6 +481,25 @@ def downgrade_to_free(session_id: str):
     """, (session_id,))
     conn.commit()
     conn.close()
+
+
+def save_email(session_id: str, email: str):
+    """세션에 이메일 등록 (세션 복구용)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET email = %s WHERE session_id = %s", (email, session_id))
+    conn.commit()
+    conn.close()
+
+
+def get_session_by_email(email: str) -> dict | None:
+    """이메일로 유저 조회 (세션 복구용)."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT session_id, plan FROM users WHERE email = %s", (email,))
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
 
 
 def activate_plan_by_customer_key(customer_key: str, plan: str):

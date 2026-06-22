@@ -14,10 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from pathlib import Path
 
-TOSS_SECRET_KEY = os.environ.get("TOSS_SECRET_KEY", "")
-TOSS_CLIENT_KEY = os.environ.get("TOSS_CLIENT_KEY", "")
-BASE_URL        = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
-DEV_SECRET      = os.environ.get("DEV_SECRET", "")
+TOSS_SECRET_KEY    = os.environ.get("TOSS_SECRET_KEY", "")
+TOSS_CLIENT_KEY    = os.environ.get("TOSS_CLIENT_KEY", "")
+BASE_URL           = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
+DEV_SECRET         = os.environ.get("DEV_SECRET", "")
+GMAIL_USER         = os.environ.get("GMAIL_USER", "")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 
 PLAN_PRICES = {
     "light": 2900,
@@ -176,7 +178,7 @@ async def dev_secret_guard(request, call_next):
             "/api/payment/fail", "/api/payment/order",
             "/api/billing/success", "/api/billing/fail",
             "/api/billing/order", "/api/billing/webhook", "/api/admin",
-            "/api/ping")
+            "/api/ping", "/api/recover-session")
     if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
         if request.headers.get("X-Dev-Secret") != DEV_SECRET:
             from fastapi.responses import JSONResponse
@@ -544,6 +546,65 @@ def ping():
     return {"ok": True}
 
 
+def _send_email(to: str, subject: str, body: str):
+    import smtplib
+    from email.mime.text import MIMEText
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        return
+    msg = MIMEText(body, "html", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = GMAIL_USER
+    msg["To"] = to
+    with smtplib.SMTP("smtp.gmail.com", 587) as s:
+        s.starttls()
+        s.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        s.sendmail(GMAIL_USER, to, msg.as_string())
+
+
+class EmailRegisterRequest(BaseModel):
+    session_id: str
+    email: str
+
+@app.post("/api/register-email")
+def register_email(req: EmailRegisterRequest):
+    """유료 플랜 세션에 이메일 등록 (세션 복구용)."""
+    if not req.email or "@" not in req.email:
+        raise HTTPException(status_code=400, detail="유효한 이메일을 입력해주세요.")
+    db.save_email(req.session_id, req.email)
+    return {"ok": True}
+
+
+class RecoverRequest(BaseModel):
+    email: str
+
+@app.post("/api/recover-session")
+def recover_session(req: RecoverRequest):
+    """이메일로 세션 ID 복구 — 등록된 이메일로 발송."""
+    user = db.get_session_by_email(req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="등록된 이메일을 찾을 수 없습니다.")
+    session_id = user["session_id"]
+    plan = user["plan"]
+    plan_names = {"light": "라이트", "basic": "베이직", "pro": "프로"}
+    plan_label = plan_names.get(plan, plan)
+    body = f"""
+    <div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:32px 16px">
+      <h2 style="color:#03C75A">🔗 네이버 내부링크 도우미</h2>
+      <p>세션 ID 복구를 요청하셨습니다.</p>
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin:20px 0">
+        <p style="margin:0;font-size:13px;color:#868e96">현재 플랜: <strong>{plan_label}</strong></p>
+        <p style="margin:8px 0 0;font-size:13px;color:#868e96">세션 ID:</p>
+        <p style="margin:4px 0 0;font-size:15px;font-weight:700;word-break:break-all">{session_id}</p>
+      </div>
+      <p style="font-size:13px;color:#868e96">
+        Chrome 익스텐션 → 플랜 바 하단 <strong>세션 ID 입력</strong>란에 위 ID를 붙여넣으세요.
+      </p>
+    </div>
+    """
+    _send_email(req.email, "[내부링크 도우미] 세션 ID 복구", body)
+    return {"ok": True}
+
+
 # ── Payment ──────────────────────────────────────────────
 
 @app.get("/upgrade", response_class=HTMLResponse)
@@ -781,6 +842,13 @@ async def billing_success(authKey: str, customerKey: str, session_id: str = "", 
   .guide li{{margin-bottom:4px}}
   button{{background:#03C75A;color:white;border:none;border-radius:8px;
           padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;width:100%}}
+  .email-box{{margin-top:16px;background:#f0faf5;border-radius:10px;padding:14px;text-align:left}}
+  .email-box p{{font-size:12px;color:#495057;margin:0 0 8px}}
+  .email-row{{display:flex;gap:6px}}
+  .email-row input{{flex:1;border:1px solid #dee2e6;border-radius:6px;padding:8px 10px;font-size:13px}}
+  .email-row button{{background:#03C75A;color:white;border:none;border-radius:6px;
+                     padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;width:auto}}
+  .email-msg{{font-size:12px;margin-top:6px;display:none}}
 </style></head><body>
 <div class="card">
   <div class="icon">🎉</div>
@@ -794,8 +862,43 @@ async def billing_success(authKey: str, customerKey: str, session_id: str = "", 
       <li>Extension 아이콘 클릭 → 업그레이드된 플랜 확인</li>
     </ol>
   </div>
-  <button onclick="window.close()">탭 닫기</button>
-</div></body></html>"""
+  <div class="email-box">
+    <p>⚠️ 브라우저 초기화 시 세션이 분실될 수 있습니다.<br>이메일을 등록하면 언제든 복구할 수 있습니다.</p>
+    <div class="email-row">
+      <input type="email" id="emailInput" placeholder="이메일 주소 입력" />
+      <button onclick="registerEmail()">등록</button>
+    </div>
+    <div class="email-msg" id="emailMsg"></div>
+  </div>
+  <button onclick="window.close()" style="margin-top:16px">탭 닫기</button>
+</div>
+<script>
+async function registerEmail() {{
+  const email = document.getElementById('emailInput').value.trim();
+  const msg = document.getElementById('emailMsg');
+  if (!email) return;
+  try {{
+    const res = await fetch('/api/register-email', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json', 'X-Dev-Secret': '{DEV_SECRET}'}},
+      body: JSON.stringify({{session_id: '{session_id}', email}})
+    }});
+    msg.style.display = 'block';
+    if (res.ok) {{
+      msg.style.color = '#087f3d';
+      msg.textContent = '✅ 이메일이 등록되었습니다.';
+    }} else {{
+      msg.style.color = '#c0392b';
+      msg.textContent = '등록에 실패했습니다. 다시 시도해주세요.';
+    }}
+  }} catch(e) {{
+    msg.style.display = 'block';
+    msg.style.color = '#c0392b';
+    msg.textContent = '오류가 발생했습니다.';
+  }}
+}}
+</script>
+</body></html>"""
 
 
 @app.get("/api/billing/fail", response_class=HTMLResponse)
