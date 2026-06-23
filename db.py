@@ -470,6 +470,23 @@ def activate_plan_by_customer_key(customer_key: str, plan: str):
         conn.commit()
 
 
+def save_customer_key_pending(session_id: str, customer_key: str):
+    """빌링 주문 생성 시 customer_key 선저장 (브라우저 닫힘 시 웹훅 복구용)."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE users SET customer_key = %s WHERE session_id = %s", (customer_key, session_id))
+        conn.commit()
+
+
+def get_user_email(session_id: str) -> str | None:
+    """유저 이메일 조회 (구독 갱신 실패 알림용)."""
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT email FROM users WHERE session_id = %s", (session_id,))
+        row = cur.fetchone()
+    return row["email"] if row else None
+
+
 def get_user_blogs(session_id: str) -> list:
     """세션이 등록한 블로그 목록 반환 (최신 등록 순)."""
     with get_db() as conn:

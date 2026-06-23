@@ -131,8 +131,18 @@ async def run_billing():
                 if resp.status_code == 200:
                     db.update_next_billing_date(session_id)
                 else:
-                    # 결제 실패 → free로 다운그레이드
                     db.downgrade_to_free(session_id)
+                    email = db.get_user_email(session_id)
+                    if email:
+                        try:
+                            _send_email(
+                                email,
+                                "[내부링크 도우미] 구독이 해지되었습니다",
+                                f"<p>안녕하세요.<br><br>카드 결제에 실패하여 구독이 해지되고 무료 플랜으로 전환되었습니다.<br>"
+                                f"카드 정보를 확인하신 후 다시 구독해주세요.</p>"
+                            )
+                        except Exception:
+                            pass
             except Exception:
                 db.downgrade_to_free(session_id)
 
@@ -780,6 +790,7 @@ def create_billing_order(req: BillingOrderRequest):
     if not req.session_id:
         raise HTTPException(status_code=400, detail="session_id가 필요합니다")
     customer_key = str(uuid.uuid4())
+    db.save_customer_key_pending(req.session_id, customer_key)
     return {
         "customer_key": customer_key,
         "client_key": TOSS_CLIENT_KEY,
@@ -936,6 +947,10 @@ def billing_fail(code: str = "", message: str = ""):
 @app.post("/api/billing/webhook")
 async def billing_webhook(request: Request):
     """토스페이먼츠 웹훅 — 결제 완료 시 플랜 활성화 안전장치."""
+    auth_header = request.headers.get("Authorization", "")
+    expected = "Basic " + base64.b64encode(f"{TOSS_SECRET_KEY}:".encode()).decode()
+    if auth_header != expected:
+        return {"ok": True}
     payload = await request.json()
     event_type = payload.get("eventType", "")
 
