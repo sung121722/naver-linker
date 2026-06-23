@@ -165,7 +165,9 @@ async def rate_limit_middleware(request: Request, call_next):
             now = time.time()
             window_start = now - _RL_WINDOW
             _rl_store[ip] = [t for t in _rl_store[ip] if t > window_start]
-            if len(_rl_store[ip]) >= _RL_MAX:
+            if not _rl_store[ip]:
+                del _rl_store[ip]
+            if len(_rl_store.get(ip, [])) >= _RL_MAX:
                 return JSONResponse({"detail": "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."}, status_code=429)
             _rl_store[ip].append(now)
     return await call_next(request)
