@@ -597,7 +597,7 @@ def recover_session(req: RecoverRequest):
         <p style="margin:4px 0 0;font-size:15px;font-weight:700;word-break:break-all">{session_id}</p>
       </div>
       <p style="font-size:13px;color:#868e96">
-        Chrome 익스텐션 → 플랜 바 하단 <strong>세션 ID 입력</strong>란에 위 ID를 붙여넣으세요.
+        Chrome 익스텐션을 열고 블로그 등록 화면 하단의 <strong>세션 ID로 복구</strong> 버튼을 클릭한 뒤, 위 세션 ID를 붙여넣으세요.
       </p>
     </div>
     """
@@ -942,7 +942,7 @@ async def billing_webhook(request: Request):
         if data.get("status") == "DONE":
             customer_key = data.get("customerKey", "")
             order_name = data.get("orderName", "")
-            plan_map = {"라이트 플랜": "light", "베이직 플랜": "basic", "프로 플랜": "pro"}
+            plan_map = {v: k for k, v in PLAN_NAMES.items()}
             resolved_plan = plan_map.get(order_name)
             if customer_key and resolved_plan:
                 db.activate_plan_by_customer_key(customer_key, resolved_plan)
