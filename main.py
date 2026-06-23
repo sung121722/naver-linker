@@ -135,11 +135,12 @@ async def run_billing():
                     email = db.get_user_email(session_id)
                     if email:
                         try:
-                            _send_email(
-                                email,
+                            loop = asyncio.get_event_loop()
+                            await loop.run_in_executor(
+                                None, _send_email, email,
                                 "[내부링크 도우미] 구독이 해지되었습니다",
-                                f"<p>안녕하세요.<br><br>카드 결제에 실패하여 구독이 해지되고 무료 플랜으로 전환되었습니다.<br>"
-                                f"카드 정보를 확인하신 후 다시 구독해주세요.</p>"
+                                "<p>안녕하세요.<br><br>카드 결제에 실패하여 구독이 해지되고 무료 플랜으로 전환되었습니다.<br>"
+                                "카드 정보를 확인하신 후 다시 구독해주세요.</p>"
                             )
                         except Exception:
                             pass
