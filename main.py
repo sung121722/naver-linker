@@ -189,7 +189,7 @@ async def dev_secret_guard(request, call_next):
     skip = ("/static", "/", "/upgrade", "/api/payment/success",
             "/api/payment/fail", "/api/payment/order",
             "/api/billing/success", "/api/billing/fail",
-            "/api/billing/order", "/api/billing/webhook", "/api/admin",
+            "/api/billing/order", "/api/billing/webhook",
             "/api/ping", "/api/recover-session")
     if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
         if request.headers.get("X-Dev-Secret") != DEV_SECRET:
@@ -432,86 +432,79 @@ def admin_set_plan(session_id: str, plan: str = "pro"):
     """테스트용: 특정 세션의 플랜을 강제 설정."""
     if plan not in ("free", "light", "basic", "pro"):
         raise HTTPException(status_code=400, detail="잘못된 플랜")
-    conn = db.get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        "UPDATE users SET plan = %s, search_count = 0, reset_at = NOW() WHERE session_id = %s",
-        (plan, session_id)
-    )
-    conn.commit()
-    conn.close()
+    with db.get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE users SET plan = %s, search_count = 0, reset_at = NOW() WHERE session_id = %s",
+            (plan, session_id)
+        )
+        conn.commit()
     return {"ok": True, "session_id": session_id, "plan": plan}
 
 
 @app.get("/api/admin/reset-ip")
 def reset_ip(request: Request):
     client_ip = get_client_ip(request)
-    conn = db.get_conn()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM ip_searches WHERE ip = %s", (client_ip,))
-    cur.execute("DELETE FROM ip_registrations WHERE ip = %s", (client_ip,))
-    conn.commit()
-    conn.close()
+    with db.get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM ip_searches WHERE ip = %s", (client_ip,))
+        cur.execute("DELETE FROM ip_registrations WHERE ip = %s", (client_ip,))
+        conn.commit()
     return {"ok": True, "reset_ip": client_ip}
 
 
 @app.get("/api/admin/stats")
 def admin_stats():
-    conn = db.get_conn()
-    cur = conn.cursor()
+    with db.get_db() as conn:
+        cur = conn.cursor()
 
-    cur.execute("SELECT COUNT(*) AS cnt FROM users")
-    total_sessions = cur.fetchone()["cnt"]
+        cur.execute("SELECT COUNT(*) AS cnt FROM users")
+        total_sessions = cur.fetchone()["cnt"]
 
-    cur.execute("SELECT COALESCE(SUM(search_count), 0) AS cnt FROM users")
-    total_searches = cur.fetchone()["cnt"]
+        cur.execute("SELECT COALESCE(SUM(search_count), 0) AS cnt FROM users")
+        total_searches = cur.fetchone()["cnt"]
 
-    cur.execute("SELECT COUNT(*) AS cnt FROM blogs")
-    total_blogs = cur.fetchone()["cnt"]
+        cur.execute("SELECT COUNT(*) AS cnt FROM blogs")
+        total_blogs = cur.fetchone()["cnt"]
 
-    cur.execute("SELECT COUNT(*) AS cnt FROM posts")
-    total_posts = cur.fetchone()["cnt"]
+        cur.execute("SELECT COUNT(*) AS cnt FROM posts")
+        total_posts = cur.fetchone()["cnt"]
 
-    cur.execute("SELECT ip, search_count FROM ip_searches ORDER BY search_count DESC LIMIT 10")
-    top_ips = cur.fetchall()
+        cur.execute("SELECT ip, search_count FROM ip_searches ORDER BY search_count DESC LIMIT 10")
+        top_ips = cur.fetchall()
 
-    cur.execute("SELECT blog_id, post_count, indexed_at FROM blogs ORDER BY indexed_at DESC LIMIT 10")
-    top_blogs = cur.fetchall()
+        cur.execute("SELECT blog_id, post_count, indexed_at FROM blogs ORDER BY indexed_at DESC LIMIT 10")
+        top_blogs = cur.fetchall()
 
-    cur.execute("SELECT session_id, search_count, plan, created_at FROM users ORDER BY search_count DESC LIMIT 10")
-    top_users = cur.fetchall()
+        cur.execute("SELECT session_id, search_count, plan, created_at FROM users ORDER BY search_count DESC LIMIT 10")
+        top_users = cur.fetchall()
 
-    # 플랜별 유저 수
-    cur.execute("SELECT plan, COUNT(*) AS cnt FROM users GROUP BY plan ORDER BY cnt DESC")
-    plan_dist = cur.fetchall()
+        cur.execute("SELECT plan, COUNT(*) AS cnt FROM users GROUP BY plan ORDER BY cnt DESC")
+        plan_dist = cur.fetchall()
 
-    # 월별 신규 유저 (최근 6개월)
-    cur.execute("""
-        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month, COUNT(*) AS cnt
-        FROM users
-        WHERE created_at IS NOT NULL
-        GROUP BY 1 ORDER BY 1 DESC LIMIT 6
-    """)
-    monthly_new = cur.fetchall()
+        cur.execute("""
+            SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month, COUNT(*) AS cnt
+            FROM users
+            WHERE created_at IS NOT NULL
+            GROUP BY 1 ORDER BY 1 DESC LIMIT 6
+        """)
+        monthly_new = cur.fetchall()
 
-    # 이탈 시점: 검색 횟수 구간별 유저 수
-    cur.execute("""
-        SELECT
-            CASE
-                WHEN search_count = 0    THEN '0회 (미사용)'
-                WHEN search_count <= 3   THEN '1~3회'
-                WHEN search_count <= 10  THEN '4~10회'
-                WHEN search_count <= 30  THEN '11~30회'
-                ELSE '31회 이상'
-            END AS 구간,
-            COUNT(*) AS cnt
-        FROM users
-        GROUP BY 1
-        ORDER BY MIN(search_count)
-    """)
-    retention = cur.fetchall()
-
-    conn.close()
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN search_count = 0    THEN '0회 (미사용)'
+                    WHEN search_count <= 3   THEN '1~3회'
+                    WHEN search_count <= 10  THEN '4~10회'
+                    WHEN search_count <= 30  THEN '11~30회'
+                    ELSE '31회 이상'
+                END AS 구간,
+                COUNT(*) AS cnt
+            FROM users
+            GROUP BY 1
+            ORDER BY MIN(search_count)
+        """)
+        retention = cur.fetchall()
 
     return {
         "summary": {
@@ -529,18 +522,6 @@ def admin_stats():
     }
 
 
-@app.get("/api/debug")
-def debug_env():
-    key = os.environ.get("ANTHROPIC_API_KEY", "")
-    masked = (key[:8] + "..." + key[-4:]) if key else "(NOT SET)"
-    # 모든 env 키 이름 노출 (값 제외)
-    all_keys = sorted(os.environ.keys())
-    return {
-        "ANTHROPIC_API_KEY": masked,
-        "all_env_keys": all_keys,
-        "total_vars": len(all_keys),
-    }
-
 
 @app.get("/api/session")
 def new_session():
@@ -550,11 +531,8 @@ def new_session():
 @app.get("/api/ping")
 def ping():
     """UptimeRobot 헬스체크 — DB 쿼리 포함하여 Supabase 비활성 정지 방지."""
-    conn = db.get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT 1")
-    cur.fetchone()
-    conn.close()
+    with db.get_db() as conn:
+        conn.cursor().execute("SELECT 1")
     return {"ok": True}
 
 
