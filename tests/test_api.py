@@ -172,7 +172,7 @@ class TestSearch:
 
     def test_paid_plan_uses_session_count(self, client, monkeypatch, mock_matcher):
         """유료 플랜은 IP가 아닌 세션 카운트로 제한"""
-        monkeypatch.setattr("db.get_search_count",   lambda sid: (119, "starter"))  # 한도 직전
+        monkeypatch.setattr("db.get_search_count",   lambda sid: (199, "light"))  # 한도 직전 (light=200)
         monkeypatch.setattr("db.get_posts", lambda bid: [
             {"title": "글", "url": "https://blog.naver.com/t/1", "date": "2026.01.01"},
         ])
@@ -182,7 +182,7 @@ class TestSearch:
         assert resp.status_code == 200
 
     def test_paid_plan_blocked_when_limit_exceeded(self, client, monkeypatch):
-        monkeypatch.setattr("db.get_search_count", lambda sid: (120, "starter"))  # 한도 초과
+        monkeypatch.setattr("db.get_search_count", lambda sid: (200, "light"))  # 한도 초과 (light=200)
 
         resp = client.post("/api/search", json=self.BASE_PAYLOAD)
         assert resp.status_code == 402
@@ -221,18 +221,18 @@ class TestPaymentOrder:
     def test_missing_session_returns_400(self, client, mock_db):
         resp = client.post("/api/payment/order", json={
             "session_id": "",
-            "plan": "starter",
+            "plan": "light",  # 유효한 플랜 + 빈 session_id → 400
         })
         assert resp.status_code == 400
 
-    def test_starter_order_returns_correct_amount(self, client, mock_db):
+    def test_light_order_returns_correct_amount(self, client, mock_db):
         resp = client.post("/api/payment/order", json={
             "session_id": "test-session-abc",
-            "plan": "starter",
+            "plan": "light",
         })
         assert resp.status_code == 200
         data = resp.json()
-        assert data["amount"] == 9900
+        assert data["amount"] == 2900
         assert "order_id" in data
         assert "client_key" in data
 
@@ -242,15 +242,15 @@ class TestPaymentOrder:
             "plan": "pro",
         })
         assert resp.status_code == 200
-        assert resp.json()["amount"] == 19900
+        assert resp.json()["amount"] == 11900
 
     def test_order_id_contains_plan_name(self, client, mock_db):
         resp = client.post("/api/payment/order", json={
             "session_id": "test-session-abc",
-            "plan": "starter",
+            "plan": "light",
         })
         order_id = resp.json()["order_id"]
-        assert "starter" in order_id
+        assert "light" in order_id
         assert order_id.startswith("NL-")
 
 
@@ -258,13 +258,13 @@ class TestPaymentOrder:
 class TestGetPlan:
     def test_returns_plan_info(self, client, monkeypatch):
         monkeypatch.setattr("db.get_plan_info", lambda sid: {
-            "plan": "starter", "search_count": 10, "daily_limit": 120
+            "plan": "basic", "search_count": 10, "daily_limit": 500, "links_copied": 0
         })
         resp = client.get("/api/plan/test-session")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["plan"] == "starter"
-        assert data["daily_limit"] == 120
+        assert data["plan"] == "basic"
+        assert data["daily_limit"] == 500
 
     def test_unknown_session_returns_free(self, client, monkeypatch):
         monkeypatch.setattr("db.get_plan_info", lambda sid: {

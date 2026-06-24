@@ -38,6 +38,8 @@ def fetch_all_posts(blog_id: str) -> list:
     base_url = f"https://blog.naver.com/{blog_id}"
     for page_data in all_pages:
         for item in page_data.get("postList", []):
+            if str(item.get("openType", "")) != "1":  # 전체공개만 수집 (비공개·이웃공개 제외)
+                continue
             title = html.unescape(unquote_plus(item.get("title", ""))).strip()
             posts.append({
                 "title": title,
