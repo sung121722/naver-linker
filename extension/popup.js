@@ -10,6 +10,7 @@ let state = {
   dailyLimit: 5,
   indexedAt: 0,
   emailRegistered: false,
+  linksCopied: 0,
 };
 
 // DOM
@@ -229,6 +230,19 @@ function updatePlanBar() {
   // 유료 플랜 + 이메일 미등록 시 배너
   emailBanner.style.display = (plan !== "free" && !state.emailRegistered) ? "block" : "none";
 
+  // 유료 플랜일 때만 통계 표시
+  const statsRow = document.getElementById("statsRow");
+  const linksCopiedCount = document.getElementById("linksCopiedCount");
+  const timeSavedCount = document.getElementById("timeSavedCount");
+  if (plan !== "free" && statsRow) {
+    const copied = state.linksCopied || 0;
+    linksCopiedCount.textContent = copied;
+    timeSavedCount.textContent = copied * 5;
+    statsRow.style.display = "block";
+  } else if (statsRow) {
+    statsRow.style.display = "none";
+  }
+
   // Pro 플랜일 때만 계정 전환 드롭다운 표시
   if (plan === "pro") {
     loadBlogSwitcher();
@@ -246,6 +260,7 @@ async function fetchPlan() {
     state.plan = data.plan;
     state.searchCount = data.search_count;
     state.dailyLimit = data.daily_limit;
+    state.linksCopied = data.links_copied || 0;
     saveState();
     updatePlanBar();
   } catch (_) {}
@@ -699,6 +714,16 @@ function updateLimitBar() {
 function copyLink(url) {
   navigator.clipboard.writeText(url).then(() => {
     showToast("링크 복사됨!");
+    if (state.sessionId) {
+      fetch(`${SERVER_URL}/api/track-copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: state.sessionId }),
+      }).catch(() => {});
+      state.linksCopied = (state.linksCopied || 0) + 1;
+      saveState();
+      updatePlanBar();
+    }
   });
 }
 

@@ -104,6 +104,7 @@ def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS customer_key TEXT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS next_billing_date DATE",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS links_copied INTEGER DEFAULT 0",
         ]:
             try:
                 cur.execute(alter)
@@ -313,13 +314,23 @@ def get_plan_info(session_id: str):
     """현재 플랜 + 사용량 조회"""
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT plan, search_count FROM users WHERE session_id = %s", (session_id,))
+        cur.execute("SELECT plan, search_count, links_copied FROM users WHERE session_id = %s", (session_id,))
         row = cur.fetchone()
     if not row:
-        return {"plan": "free", "search_count": 0, "daily_limit": FREE_LIMIT}
+        return {"plan": "free", "search_count": 0, "daily_limit": FREE_LIMIT, "links_copied": 0}
     plan = row["plan"] or "free"
     limit = get_limit(plan)
-    return {"plan": plan, "search_count": row["search_count"], "daily_limit": limit}
+    return {"plan": plan, "search_count": row["search_count"], "daily_limit": limit, "links_copied": row["links_copied"] or 0}
+
+
+def increment_links_copied(session_id: str):
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE users SET links_copied = COALESCE(links_copied, 0) + 1 WHERE session_id = %s",
+            (session_id,)
+        )
+        conn.commit()
 
 
 def get_blog(blog_id: str):

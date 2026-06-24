@@ -357,20 +357,18 @@
     <button id="indexBtn">수집</button>
   </div>
   <div class="blog-status" id="blogStatus"></div>
+  <div style="text-align:right;margin-top:4px;">
+    <button id="showRecoverBtn" style="background:none;border:none;font-size:11px;color:#adb5bd;cursor:pointer;padding:0;text-decoration:underline;">세션 ID로 복구</button>
+  </div>
+  <div id="recoverRow" style="display:none;margin-top:6px;">
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="recoverInput" placeholder="이메일로 받은 세션 ID 입력" style="flex:1;border:1px solid #dee2e6;border-radius:7px;padding:8px 10px;font-size:12px;outline:none;" />
+      <button id="recoverBtn">복구</button>
+    </div>
+    <div id="recoverMsg" style="font-size:11px;margin-top:4px;display:none;"></div>
+  </div>
 </div>
 
-
-<!-- 진단 카드 -->
-<div id="diagCard" style="display:none;background:white;margin:0 10px 8px;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">
-  <div style="font-size:11px;font-weight:700;color:#868e96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📊 내 블로그 내부링크 진단</div>
-  <div style="font-size:13px;color:#212529;font-weight:600;margin-bottom:6px;">
-    <span id="diagTotal">0</span>개 글 중 점검 완료: <span id="diagChecked" style="color:#03C75A;">0</span>개
-  </div>
-  <div style="background:#e9ecef;border-radius:4px;height:5px;overflow:hidden;">
-    <div id="diagBar" style="background:#03C75A;height:100%;width:0%;transition:width 0.4s;"></div>
-  </div>
-  <div id="diagMsg" style="font-size:11px;color:#868e96;margin-top:5px;">키워드 검색마다 점검 완료 수가 올라갑니다.</div>
-</div>
 
 <!-- 기능 탭 -->
 <div class="section" id="featureSection" style="display:none;">
@@ -384,12 +382,12 @@
         <span class="plan-sub" id="planSub"></span>
       </span>
     </div>
+    <div id="statsRow" style="display:none;font-size:11px;color:#495057;margin-top:4px;padding:4px 0 2px;">
+      이번 달 복사한 링크 <strong id="linksCopiedCount">0</strong>개 · 아낀 시간 약 <strong id="timeSavedCount">0</strong>분
+    </div>
     <div class="plan-bar-row2" id="planActions">
       <button class="upgrade-btn" id="upgradeBtn">🔓 플랜 업그레이드</button>
       <button class="cancel-btn" id="cancelBtn">구독 해지</button>
-    </div>
-    <div style="text-align:right; margin-top:4px;">
-      <button id="copySessionBtn" style="background:none;border:none;font-size:10px;color:#ced4da;cursor:pointer;padding:0;">세션 ID 복사</button>
     </div>
     <!-- 이메일 미등록 시 표시 -->
     <div id="emailBanner" style="display:none;margin-top:8px;background:#fff3cd;border-radius:6px;padding:8px 10px;font-size:11px;color:#856404;">

@@ -941,6 +941,16 @@ async def billing_webhook(request: Request):
     return {"ok": True}
 
 
+class TrackCopyRequest(BaseModel):
+    session_id: str
+
+@app.post("/api/track-copy")
+def track_copy(req: TrackCopyRequest):
+    if req.session_id:
+        db.increment_links_copied(req.session_id)
+    return {"ok": True}
+
+
 @app.get("/api/status/{blog_id}")
 def status(blog_id: str):
     blog = db.get_blog(blog_id)
