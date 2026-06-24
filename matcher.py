@@ -15,8 +15,11 @@ def _get_client() -> Anthropic:
     return Anthropic()
 
 
+MAX_POSTS_TO_CLAUDE = 300
+
 def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
     client = _get_client()
+    posts = posts[:MAX_POSTS_TO_CLAUDE]
     post_list = "\n".join(
         f"{i+1}. [{p.get('date', '')}] {p['title']} | {p['url']}" for i, p in enumerate(posts)
     )
