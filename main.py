@@ -600,6 +600,10 @@ def recover_session(req: RecoverRequest):
 def upgrade_page():
     return Path("static/upgrade.html").read_text(encoding="utf-8")
 
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page():
+    return Path("static/privacy.html").read_text(encoding="utf-8")
+
 
 @app.get("/api/plan/{session_id}")
 def get_plan(session_id: str, request: Request):
