@@ -519,6 +519,25 @@ def admin_stats():
 
 
 
+@app.get("/api/config")
+def get_config():
+    """네이버 에디터 CSS 셀렉터 원격 설정 — content.js가 주기적으로 읽음.
+    네이버가 HTML 구조를 변경하면 이 값만 바꾸면 CWS 재심사 없이 즉시 반영됨."""
+    return {
+        "titleSelectors": [
+            ".se-title-input",
+            ".se-documentTitle-inputTitle",
+            "input[placeholder*='제목']",
+            "textarea[placeholder*='제목']",
+        ],
+        "editorDetectSelectors": [
+            ".se-title-input",
+            ".se-documentTitle-inputTitle",
+            "input[placeholder*='제목']",
+        ],
+    }
+
+
 @app.get("/api/session")
 def new_session():
     return {"session_id": str(uuid.uuid4())}
@@ -731,6 +750,8 @@ async def payment_success(paymentKey: str, orderId: str, amount: int):
 
 @app.get("/api/payment/fail", response_class=HTMLResponse)
 def payment_fail(code: str = "", message: str = ""):
+    from html import escape
+    safe_msg = escape(message) if message else "결제가 취소되었거나 오류가 발생했습니다."
     return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>결제 실패</title>
@@ -750,7 +771,7 @@ def payment_fail(code: str = "", message: str = ""):
 <div class="card">
   <div class="icon">😢</div>
   <h2>결제 실패</h2>
-  <div class="err">{message or "결제가 취소되었거나 오류가 발생했습니다."}</div>
+  <div class="err">{safe_msg}</div>
   <p>다시 시도하거나 다른 카드를 사용해보세요.</p>
   <button onclick="history.back()">뒤로 가기</button>
 </div></body></html>"""
@@ -897,6 +918,8 @@ async function registerEmail() {{
 
 @app.get("/api/billing/fail", response_class=HTMLResponse)
 def billing_fail(code: str = "", message: str = ""):
+    from html import escape
+    safe_msg = escape(message) if message else "결제가 취소되었거나 오류가 발생했습니다."
     return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>결제 실패</title>
@@ -916,7 +939,7 @@ def billing_fail(code: str = "", message: str = ""):
 <div class="card">
   <div class="icon">😢</div>
   <h2>결제 실패</h2>
-  <div class="err">{message or "결제가 취소되었거나 오류가 발생했습니다."}</div>
+  <div class="err">{safe_msg}</div>
   <p>다시 시도하거나 다른 카드를 사용해보세요.</p>
   <button onclick="history.back()">뒤로 가기</button>
 </div></body></html>"""

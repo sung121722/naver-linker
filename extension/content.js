@@ -2,6 +2,28 @@
 // all_frames: true → 에디터 iframe 안에서도 실행됨
 
 (function () {
+  const SERVER_API = "https://naver-linker.onrender.com";
+
+  // ── 원격 셀렉터 설정 (네이버 HTML 구조 변경 시 CWS 재심사 없이 즉시 반영) ──
+  let CONFIG = {
+    titleSelectors: [
+      ".se-title-input",
+      ".se-documentTitle-inputTitle",
+      "input[placeholder*='제목']",
+      "textarea[placeholder*='제목']",
+    ],
+    editorDetectSelectors: [
+      ".se-title-input",
+      ".se-documentTitle-inputTitle",
+      "input[placeholder*='제목']",
+    ],
+  };
+
+  fetch(`${SERVER_API}/api/config`, { cache: "no-store" })
+    .then((r) => r.json())
+    .then((data) => { Object.assign(CONFIG, data); })
+    .catch(() => {}); // 실패 시 기본값 유지
+
   // ── 커서 위치 저장 ────────────────────────────────────
   const el = document.querySelector('[contenteditable="true"]');
   if (el) {
@@ -23,13 +45,8 @@
   if (window !== window.top) return;
 
   function getTitleFromEditor() {
-    const candidates = [
-      document.querySelector(".se-title-input"),
-      document.querySelector("input[placeholder*='제목']"),
-      document.querySelector("textarea[placeholder*='제목']"),
-      document.querySelector(".se-documentTitle-inputTitle"),
-    ];
-    for (const el of candidates) {
+    for (const selector of CONFIG.titleSelectors) {
+      const el = document.querySelector(selector);
       if (!el) continue;
       const val = el.value || el.textContent || el.innerText || "";
       if (val.trim()) return val.trim();
@@ -37,16 +54,13 @@
     return "";
   }
 
+  function isEditorPage() {
+    return CONFIG.editorDetectSelectors.some((s) => !!document.querySelector(s));
+  }
+
   function injectFloatingBtn() {
     if (document.getElementById("nlinker-float-btn")) return;
-
-    // 에디터 환경인지 확인 (제목 입력창 존재 여부)
-    const isEditor = !!(
-      document.querySelector(".se-title-input") ||
-      document.querySelector("input[placeholder*='제목']") ||
-      document.querySelector(".se-documentTitle-inputTitle")
-    );
-    if (!isEditor) return;
+    if (!isEditorPage()) return;
 
     const btn = document.createElement("button");
     btn.id = "nlinker-float-btn";
