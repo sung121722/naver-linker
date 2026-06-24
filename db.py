@@ -185,7 +185,7 @@ def get_search_count(session_id: str):
         row = cur.fetchone()
     if not row:
         return 0, "free"
-    plan = row["plan"] if row["plan"] else ("starter" if row["is_paid"] else "free")
+    plan = row["plan"] or "free"
     return row["search_count"], plan
 
 
@@ -245,6 +245,13 @@ def save_posts(blog_id: str, posts: list):
                 title = EXCLUDED.title,
                 date  = EXCLUDED.date
         """, [(blog_id, p["title"], p["url"], p.get("date", "")) for p in posts])
+        # 유저가 삭제한 글은 DB에서도 제거 (추천 정확도 유지)
+        if posts:
+            urls = [p["url"] for p in posts]
+            cur.execute(
+                "DELETE FROM posts WHERE blog_id = %s AND url != ALL(%s)",
+                (blog_id, urls)
+            )
         cur.execute("""
             INSERT INTO blogs (blog_id, post_count, indexed_at)
             VALUES (%s, %s, NOW())
@@ -256,11 +263,13 @@ def save_posts(blog_id: str, posts: list):
 
 
 def get_latest_by_keyword(blog_id: str, keyword: str, n: int) -> list:
+    # LIKE 와일드카드 이스케이프 (%, _ 를 리터럴로 처리)
+    escaped = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute(
-            "SELECT title, url, date FROM posts WHERE blog_id = %s AND LOWER(title) LIKE LOWER(%s)",
-            (blog_id, f"%{keyword}%")
+            "SELECT title, url, date FROM posts WHERE blog_id = %s AND LOWER(title) LIKE LOWER(%s) ESCAPE '\\'",
+            (blog_id, f"%{escaped}%")
         )
         rows = cur.fetchall()
     result = [{"title": r["title"], "url": r["url"], "date": r["date"] or "", "score": 80} for r in rows]

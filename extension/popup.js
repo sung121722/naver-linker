@@ -304,7 +304,7 @@ emailBannerBtn.addEventListener("click", async () => {
 });
 
 cancelBtn.addEventListener("click", async () => {
-  if (!confirm(`구독을 해지하면 즉시 무료 플랜으로 전환됩니다.\n남은 기간 환불은 불가합니다. 계속하시겠습니까?`)) return;
+  if (!confirm(`구독을 해지하면 즉시 무료 플랜으로 전환됩니다.\n미사용 상태 7일 이내 해지 시 전액 환불 가능 (kang020672@gmail.com 문의).\n계속하시겠습니까?`)) return;
   cancelBtn.disabled = true;
   try {
     const res = await fetch(`${SERVER_URL}/api/cancel`, {

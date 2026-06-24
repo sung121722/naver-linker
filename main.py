@@ -148,10 +148,19 @@ async def run_billing():
                 db.downgrade_to_free(session_id)
 
 
+async def cleanup_rl_store():
+    """만료된 IP 레이트리밋 항목 정리 (메모리 누수 방지)."""
+    now = time.time()
+    window_start = now - _RL_WINDOW
+    stale = [ip for ip, ts in _rl_store.items() if not any(t > window_start for t in ts)]
+    for ip in stale:
+        del _rl_store[ip]
+
+
 @app.on_event("startup")
 async def startup():
-    # 매일 오전 9시(KST) = UTC 0시 실행
     scheduler.add_job(run_billing, "cron", hour=0, minute=0)
+    scheduler.add_job(cleanup_rl_store, "interval", minutes=10)
     scheduler.start()
 
 
