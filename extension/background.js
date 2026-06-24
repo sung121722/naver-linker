@@ -23,6 +23,7 @@ async function fetchAllPosts(blogId) {
   const baseUrl = `https://blog.naver.com/${blogId}`;
   for (const pageData of allPages) {
     for (const item of pageData.postList || []) {
+      if (String(item.openType) !== "1") continue; // 전체공개만 수집
       posts.push({
         title: decodeTitle(item.title || ""),
         url: `${baseUrl}/${item.logNo}`,
