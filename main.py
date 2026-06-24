@@ -186,14 +186,9 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def dev_secret_guard(request, call_next):
-    # 정적 파일 · 어드민 · 결제 콜백은 키 불필요
-    skip = ("/static", "/", "/upgrade", "/api/payment/success",
-            "/api/payment/fail", "/api/payment/order",
-            "/api/billing/success", "/api/billing/fail",
-            "/api/billing/order", "/api/billing/webhook",
-            "/api/ping", "/api/recover-session")
-    if DEV_SECRET and not any(request.url.path.startswith(p) for p in skip):
-        if request.headers.get("X-Dev-Secret") != DEV_SECRET:
+    # 어드민 엔드포인트만 DEV_SECRET으로 보호 (서버 환경변수 전용)
+    if request.url.path.startswith("/api/admin"):
+        if DEV_SECRET and request.headers.get("X-Dev-Secret") != DEV_SECRET:
             from fastapi.responses import JSONResponse
             return JSONResponse({"detail": "Unauthorized"}, status_code=401)
     return await call_next(request)
@@ -875,7 +870,7 @@ async function registerEmail() {{
   try {{
     const res = await fetch('/api/register-email', {{
       method: 'POST',
-      headers: {{'Content-Type': 'application/json', 'X-Dev-Secret': '{DEV_SECRET}'}},
+      headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{session_id: '{session_id}', email}})
     }});
     msg.style.display = 'block';

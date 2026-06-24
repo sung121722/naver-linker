@@ -10,7 +10,6 @@ let state = {
   dailyLimit: 5,
   indexedAt: 0,
   emailRegistered: false,
-  checkedCount: 0,
 };
 
 // DOM
@@ -40,7 +39,6 @@ const upgradeBtn = document.getElementById("upgradeBtn");
 const cancelBtn = document.getElementById("cancelBtn");
 const usedCount2 = document.getElementById("usedCount2");
 const limitCount2 = document.getElementById("limitCount2");
-const copySessionBtn = document.getElementById("copySessionBtn");
 const emailBanner = document.getElementById("emailBanner");
 const emailBannerInput = document.getElementById("emailBannerInput");
 const emailBannerBtn = document.getElementById("emailBannerBtn");
@@ -49,11 +47,11 @@ const blogSwitcher = document.getElementById("blogSwitcher");
 const blogSelect = document.getElementById("blogSelect");
 const switchBlogBtn = document.getElementById("switchBlogBtn");
 const deleteBlogBtn = document.getElementById("deleteBlogBtn");
-const diagCard = document.getElementById("diagCard");
-const diagTotal = document.getElementById("diagTotal");
-const diagChecked = document.getElementById("diagChecked");
-const diagBar = document.getElementById("diagBar");
-const diagMsg = document.getElementById("diagMsg");
+const showRecoverBtn = document.getElementById("showRecoverBtn");
+const recoverRow = document.getElementById("recoverRow");
+const recoverInput = document.getElementById("recoverInput");
+const recoverBtn = document.getElementById("recoverBtn");
+const recoverMsg = document.getElementById("recoverMsg");
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
@@ -188,7 +186,6 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
       featureSection.style.display = "block";
       updateLimitBar();
       updatePlanBar();
-      updateDiagCard();
       // 팝업 열 때마다 플랜 서버 동기화 (결제 후 자동 반영)
       fetchPlan();
       silentSync(state.blogId);
@@ -200,30 +197,9 @@ function saveState() {
   chrome.storage.local.set({ [STORAGE_KEY]: state });
 }
 
-// ── 진단 카드 ─────────────────────────────────────────────
-function updateDiagCard() {
-  if (!state.postCount) return;
-  const total = state.postCount;
-  const checked = state.checkedCount || 0;
-  const pct = Math.min(100, Math.round((checked / total) * 100));
-  diagTotal.textContent = total;
-  diagChecked.textContent = checked;
-  diagBar.style.width = pct + "%";
-  if (pct === 0) {
-    diagMsg.textContent = "키워드 검색마다 점검 완료 수가 올라갑니다.";
-  } else if (pct < 30) {
-    diagMsg.textContent = `${pct}% 점검 완료 — 계속 검색해보세요!`;
-  } else if (pct < 70) {
-    diagMsg.textContent = `${pct}% 점검 완료 — 잘 하고 있어요 👍`;
-  } else {
-    diagMsg.textContent = `${pct}% 점검 완료 — 내부링크 최적화 우수!`;
-  }
-  diagCard.style.display = "block";
-}
 
 // ── 플랜 바 ──────────────────────────────────────────────
 const SERVER_URL  = "https://naver-linker.onrender.com";
-const DEV_SECRET  = "nlinker-test-2026";
 
 function updatePlanBar() {
   const plan = state.plan || "free";
@@ -264,9 +240,7 @@ function updatePlanBar() {
 async function fetchPlan() {
   if (!state.sessionId) return;
   try {
-    const res = await fetch(`${SERVER_URL}/api/plan/${state.sessionId}`, {
-      headers: { "X-Dev-Secret": DEV_SECRET },
-    });
+    const res = await fetch(`${SERVER_URL}/api/plan/${state.sessionId}`);
     if (!res.ok) return;
     const data = await res.json();
     state.plan = data.plan;
@@ -283,10 +257,6 @@ upgradeBtn.addEventListener("click", () => {
   });
 });
 
-copySessionBtn.addEventListener("click", () => {
-  if (!state.sessionId) return;
-  navigator.clipboard.writeText(state.sessionId).then(() => showToast("세션 ID 복사됨!"));
-});
 
 emailBannerBtn.addEventListener("click", async () => {
   const email = emailBannerInput.value.trim();
@@ -295,7 +265,7 @@ emailBannerBtn.addEventListener("click", async () => {
   try {
     const res = await fetch(`${SERVER_URL}/api/register-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Dev-Secret": DEV_SECRET },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session_id: state.sessionId, email }),
     });
     emailBannerMsg.style.display = "block";
@@ -324,7 +294,7 @@ cancelBtn.addEventListener("click", async () => {
   try {
     const res = await fetch(`${SERVER_URL}/api/cancel`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Dev-Secret": DEV_SECRET },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ session_id: state.sessionId }),
     });
     if (!res.ok) throw new Error("해지 실패");
@@ -342,12 +312,41 @@ cancelBtn.addEventListener("click", async () => {
   }
 });
 
+showRecoverBtn.addEventListener("click", () => {
+  recoverRow.style.display = recoverRow.style.display === "none" ? "block" : "none";
+});
+
+recoverBtn.addEventListener("click", async () => {
+  const sid = recoverInput.value.trim();
+  if (!sid) return;
+  recoverBtn.disabled = true;
+  recoverMsg.style.display = "none";
+  try {
+    const res = await fetch(`${SERVER_URL}/api/plan/${sid}`);
+    if (!res.ok) throw new Error("유효하지 않은 세션 ID입니다.");
+    const data = await res.json();
+    if (data.plan === "free") throw new Error("유료 플랜 세션만 복구 가능합니다.");
+    state.sessionId = sid;
+    state.plan = data.plan;
+    state.searchCount = data.search_count;
+    state.dailyLimit = data.daily_limit;
+    saveState();
+    recoverMsg.style.display = "block";
+    recoverMsg.style.color = "#087f3d";
+    recoverMsg.textContent = `✅ ${data.plan.toUpperCase()} 플랜 복구 완료. 블로그를 다시 등록해주세요.`;
+    recoverRow.style.display = "none";
+  } catch (e) {
+    recoverMsg.style.display = "block";
+    recoverMsg.style.color = "#c0392b";
+    recoverMsg.textContent = e.message || "복구 실패";
+    recoverBtn.disabled = false;
+  }
+});
+
 async function loadBlogSwitcher() {
   if (!state.sessionId) return;
   try {
-    const res = await fetch(`${SERVER_URL}/api/user-blogs/${state.sessionId}`, {
-      headers: { "X-Dev-Secret": DEV_SECRET },
-    });
+    const res = await fetch(`${SERVER_URL}/api/user-blogs/${state.sessionId}`);
     if (!res.ok) return;
     const data = await res.json();
     const blogs = data.blogs || [];
@@ -442,12 +441,10 @@ indexBtn.addEventListener("click", async () => {
     saveState();
 
     state.indexedAt = Date.now();
-    state.checkedCount = 0;
     showStatus(`✅ ${blogId} — 글 ${state.postCount}개 등록 완료`, "success");
     featureSection.style.display = "block";
     updateLimitBar();
     updatePlanBar();
-    updateDiagCard();
   } catch (e) {
     showStatus(`❌ 오류: ${e.message}`, "error");
   } finally {
@@ -527,9 +524,7 @@ async function doSearch(keyword) {
     relevanceResults = relRes.results || [];
     latestResults = latRes.ok ? (latRes.results || []) : [];
 
-    state.checkedCount = (state.checkedCount || 0) + 1;
     saveState();
-    updateDiagCard();
 
     currentResults = currentSort === "latest" ? latestResults : relevanceResults;
     sortRow.style.display = currentResults.length ? "flex" : "none";

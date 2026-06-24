@@ -1,9 +1,7 @@
 const NAVER_API  = "https://blog.naver.com/PostTitleListAsync.nhn";
 const SERVER_API = "https://naver-linker.onrender.com";
-const DEV_SECRET = "nlinker-test-2026";
 const SERVER_HEADERS = {
   "Content-Type": "application/json",
-  "X-Dev-Secret": DEV_SECRET,
 };
 const COUNT_PER_PAGE = 30;
 
