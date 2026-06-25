@@ -359,9 +359,10 @@
   </div>
   <div class="blog-status" id="blogStatus"></div>
   <div style="text-align:right;margin-top:4px;">
-    <button id="showRecoverBtn" style="background:none;border:none;font-size:11px;color:#adb5bd;cursor:pointer;padding:0;text-decoration:underline;">세션 ID로 복구</button>
+    <button id="showRecoverBtn" style="background:none;border:none;font-size:11px;color:#adb5bd;cursor:pointer;padding:0;text-decoration:underline;">🔄 구독 복구하기</button>
   </div>
   <div id="recoverRow" style="display:none;margin-top:6px;">
+    <div style="font-size:11px;color:#868e96;margin-bottom:6px;line-height:1.5;">기기를 바꾸거나 확장프로그램을 재설치했나요?<br>가입 시 등록한 이메일로 전송된 세션 ID를 입력하면 구독이 복구됩니다.</div>
     <div style="display:flex;gap:6px;">
       <input type="text" id="recoverInput" placeholder="이메일로 받은 세션 ID 입력" style="flex:1;border:1px solid #dee2e6;border-radius:7px;padding:8px 10px;font-size:12px;outline:none;" />
       <button id="recoverBtn">복구</button>
@@ -431,7 +432,7 @@
       </div>
     </div>
     <div class="limit-bar" id="limitBar" style="display:none;">
-      오늘 사용: <span id="usedCount">0</span> / <span id="limitCount">5</span>회
+      이번 달 사용: <span id="usedCount">0</span> / <span id="limitCount">5</span>회
     </div>
     <div class="topn-row" id="sortRow" style="display:none;">
       <span class="topn-label">정렬</span>
@@ -453,7 +454,7 @@
       <button id="dupBtn">감지</button>
     </div>
     <div class="limit-bar" id="dupLimitBar" style="display:none;">
-      오늘 사용: <span id="dupUsedCount">0</span> / <span id="dupLimitCount">5</span>회
+      이번 달 사용: <span id="dupUsedCount">0</span> / <span id="dupLimitCount">5</span>회
     </div>
     <div class="result-list" id="dupResults"></div>
   </div>
