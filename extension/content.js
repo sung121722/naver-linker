@@ -98,44 +98,20 @@
     if (document.getElementById("nlinker-float-btn")) clearInterval(check);
   }, 1500);
 
-  // ── 제목 자동 감지: 2초 debounce 후 자동 검색 트리거 ──
+  // ── 제목 자동 감지: document 전체 keyup → getTitleFromEditor() → 2초 debounce ──
   let _autoTimer = null;
   let _lastAutoKeyword = "";
 
-  function watchTitleForAutoSearch() {
-    for (const selector of CONFIG.titleSelectors) {
-      const el = document.querySelector(selector);
-      if (!el) continue;
-
-      const trigger = () => {
-        clearTimeout(_autoTimer);
-        _autoTimer = setTimeout(() => {
-          const keyword = (el.value || el.textContent || el.innerText || "").trim().slice(0, 50);
-          if (!keyword || keyword === _lastAutoKeyword) return;
-          _lastAutoKeyword = keyword;
-          chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword });
-        }, 2000);
-      };
-
-      el.addEventListener("input",   trigger);
-      el.addEventListener("keyup",   trigger);
-      break;
-    }
-  }
-
-  // 제목 필드가 동적 로딩되므로 주기적으로 감시 등록
-  let _watchRegistered = false;
-  const watchCheck = setInterval(() => {
-    if (_watchRegistered) { clearInterval(watchCheck); return; }
-    for (const selector of CONFIG.titleSelectors) {
-      if (document.querySelector(selector)) {
-        watchTitleForAutoSearch();
-        _watchRegistered = true;
-        clearInterval(watchCheck);
-        break;
-      }
-    }
-  }, 1500);
+  document.addEventListener("keyup", () => {
+    if (!isEditorPage()) return;
+    clearTimeout(_autoTimer);
+    _autoTimer = setTimeout(() => {
+      const keyword = getTitleFromEditor().slice(0, 50);
+      if (!keyword || keyword === _lastAutoKeyword) return;
+      _lastAutoKeyword = keyword;
+      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword });
+    }, 2000);
+  });
 
   // ── 현재 페이지 블로그 ID 감지 → popup으로 전송 ──────
   function detectBlogId() {
