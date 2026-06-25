@@ -95,7 +95,7 @@
         setTimeout(() => { btn.textContent = "🔗 내부링크 체크"; }, 2000);
         return;
       }
-      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword });
+      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
       btn.textContent = "✅ 사이드 패널에서 확인";
       setTimeout(() => { btn.textContent = "🔗 내부링크 체크"; }, 2500);
     });
@@ -120,7 +120,7 @@
       const keyword = getTitleFromEditor().slice(0, 50);
       if (!keyword || keyword === _lastAutoKeyword) return;
       _lastAutoKeyword = keyword;
-      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword });
+      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
     }, 2000);
   });
 
