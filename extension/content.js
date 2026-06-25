@@ -45,16 +45,27 @@
   if (window !== window.top) return;
 
   function getTitleFromEditor() {
+    // 1. 알려진 셀렉터 먼저 시도
     for (const selector of CONFIG.titleSelectors) {
       const el = document.querySelector(selector);
       if (!el) continue;
       const val = el.value || el.textContent || el.innerText || "";
       if (val.trim()) return val.trim();
     }
+    // 2. fallback: contenteditable 중 짧은 텍스트 (제목은 본문보다 짧음)
+    const editables = document.querySelectorAll('[contenteditable="true"]');
+    for (const el of editables) {
+      const text = (el.textContent || el.innerText || "").trim();
+      if (text && text.length < 100) return text;
+    }
     return "";
   }
 
   function isEditorPage() {
+    // URL 기반 판단 (셀렉터보다 안정적)
+    const url = window.location.href;
+    if (url.includes("blog.naver.com") && (url.includes("PostWrite") || url.includes("blogId"))) return true;
+    // 셀렉터 fallback
     return CONFIG.editorDetectSelectors.some((s) => !!document.querySelector(s));
   }
 
