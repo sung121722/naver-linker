@@ -97,4 +97,24 @@
     injectFloatingBtn();
     if (document.getElementById("nlinker-float-btn")) clearInterval(check);
   }, 1500);
+
+  // ── 현재 페이지 블로그 ID 감지 → popup으로 전송 ──────
+  function detectBlogId() {
+    try {
+      const url = new URL(window.location.href);
+      if (url.hostname !== "blog.naver.com") return;
+      // 글쓰기 에디터: ?blogId=xxx
+      const param = url.searchParams.get("blogId");
+      if (param) return param;
+      // 블로그 페이지: /BLOGID/postNo
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length >= 1 && !parts[0].includes(".")) return parts[0];
+    } catch (_) {}
+    return null;
+  }
+
+  const detectedBlogId = detectBlogId();
+  if (detectedBlogId) {
+    chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId });
+  }
 })();

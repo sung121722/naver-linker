@@ -59,6 +59,25 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "AUTO_SUGGEST") {
     showAutoSuggest(msg.keyword, msg.results);
   }
+  if (msg.type === "DETECTED_BLOG_ID") {
+    const detected = msg.blogId;
+    if (!detected || detected === state.blogId || !state.sessionId) return;
+    // Pro: 서버 블로그 목록에 있으면 자동 전환
+    fetch(`${SERVER_URL}/api/user-blogs/${state.sessionId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const blogs = data.blogs || [];
+        if (blogs.includes(detected)) {
+          state.blogId = detected;
+          blogIdInput.value = detected;
+          saveState();
+          loadBlogSwitcher();
+          showStatus(`🔄 ${detected} 블로그로 자동 전환됨`, "success");
+          silentSync(detected);
+        }
+      })
+      .catch(() => {});
+  }
   if (msg.type === "EDITOR_TITLE") {
     if (featureSection.style.display === "none") return;
     // 관련 글 탭으로 전환
