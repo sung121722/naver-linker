@@ -64,7 +64,11 @@
   function isEditorPage() {
     // URL 기반 판단 (셀렉터보다 안정적)
     const url = window.location.href;
-    if (url.includes("blog.naver.com") && (url.includes("PostWrite") || url.includes("blogId"))) return true;
+    if (url.includes("blog.naver.com") && (
+      url.includes("PostWrite") ||
+      url.includes("Redirect=Write") ||
+      url.includes("blogId")
+    )) return true;
     // 셀렉터 fallback
     return CONFIG.editorDetectSelectors.some((s) => !!document.querySelector(s));
   }
