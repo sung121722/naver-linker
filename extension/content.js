@@ -24,7 +24,7 @@
     .then((data) => { Object.assign(CONFIG, data); })
     .catch(() => {}); // 실패 시 기본값 유지
 
-  // ── 커서 위치 저장 ────────────────────────────────────
+  // ── 커서 위치 저장 (all frames) ──────────────────────────
   const el = document.querySelector('[contenteditable="true"]');
   if (el) {
     function saveRange() {
@@ -40,9 +40,16 @@
     document.addEventListener("keyup",           saveRange);
   }
 
-  // ── 에디터 감지 + 플로팅 버튼 주입 ──────────────────
-  // top frame에서만 실행 (iframe 안에서는 중복 주입 방지)
-  if (window !== window.top) return;
+  // ── 에디터 판별 함수 (all frames에서 사용) ───────────────
+  function isEditorPage() {
+    const url = window.location.href;
+    if (url.includes("blog.naver.com") && (
+      url.includes("PostWrite") ||
+      url.includes("Redirect=Write") ||
+      url.includes("blogId")
+    )) return true;
+    return CONFIG.editorDetectSelectors.some((s) => !!document.querySelector(s));
+  }
 
   function getTitleFromEditor() {
     // 1. 알려진 셀렉터 먼저 시도
@@ -61,17 +68,25 @@
     return "";
   }
 
-  function isEditorPage() {
-    // URL 기반 판단 (셀렉터보다 안정적)
-    const url = window.location.href;
-    if (url.includes("blog.naver.com") && (
-      url.includes("PostWrite") ||
-      url.includes("Redirect=Write") ||
-      url.includes("blogId")
-    )) return true;
-    // 셀렉터 fallback
-    return CONFIG.editorDetectSelectors.some((s) => !!document.querySelector(s));
-  }
+  // ── 자동검색 트리거 (all frames — 제목이 있는 iframe에서도 동작) ──
+  // 네이버 SmartEditor ONE은 제목·본문이 외부 페이지 안의 iframe 안에 있음
+  // → if (window !== window.top) return 이후에 두면 iframe에서 keyup을 못 잡음
+  let _autoTimer = null;
+  let _lastAutoKeyword = "";
+
+  document.addEventListener("keyup", () => {
+    if (!isEditorPage()) return;
+    clearTimeout(_autoTimer);
+    _autoTimer = setTimeout(() => {
+      const keyword = getTitleFromEditor().slice(0, 50);
+      if (!keyword || keyword === _lastAutoKeyword) return;
+      _lastAutoKeyword = keyword;
+      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
+    }, 2000);
+  });
+
+  // ── 이하 top frame 전용 ───────────────────────────────────
+  if (window !== window.top) return;
 
   function injectFloatingBtn() {
     if (document.getElementById("nlinker-float-btn")) return;
@@ -113,30 +128,13 @@
     if (document.getElementById("nlinker-float-btn")) clearInterval(check);
   }, 1500);
 
-  // ── 제목 자동 감지: document 전체 keyup → getTitleFromEditor() → 2초 debounce ──
-  let _autoTimer = null;
-  let _lastAutoKeyword = "";
-
-  document.addEventListener("keyup", () => {
-    if (!isEditorPage()) return;
-    clearTimeout(_autoTimer);
-    _autoTimer = setTimeout(() => {
-      const keyword = getTitleFromEditor().slice(0, 50);
-      if (!keyword || keyword === _lastAutoKeyword) return;
-      _lastAutoKeyword = keyword;
-      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
-    }, 2000);
-  });
-
-  // ── 현재 페이지 블로그 ID 감지 → popup으로 전송 ──────
+  // ── 현재 페이지 블로그 ID 감지 → popup으로 전송 ──────────
   function detectBlogId() {
     try {
       const url = new URL(window.location.href);
       if (url.hostname !== "blog.naver.com") return;
-      // 글쓰기 에디터: ?blogId=xxx
       const param = url.searchParams.get("blogId");
       if (param) return param;
-      // 블로그 페이지: /BLOGID/postNo
       const parts = url.pathname.split("/").filter(Boolean);
       if (parts.length >= 1 && !parts[0].includes(".")) return parts[0];
     } catch (_) {}
