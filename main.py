@@ -533,6 +533,7 @@ def get_config():
     """네이버 에디터 CSS 셀렉터 원격 설정 — content.js가 주기적으로 읽음.
     네이버가 HTML 구조를 변경하면 이 값만 바꾸면 CWS 재심사 없이 즉시 반영됨."""
     return {
+        "naverApiUrl": "https://blog.naver.com/PostTitleListAsync.nhn",
         "titleSelectors": [
             ".se-title-input",
             ".se-documentTitle-inputTitle",

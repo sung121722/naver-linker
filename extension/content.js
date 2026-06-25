@@ -141,6 +141,6 @@
 
   const detectedBlogId = detectBlogId();
   if (detectedBlogId) {
-    chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId });
+    chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId }).catch(() => {});
   }
 })();

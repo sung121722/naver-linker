@@ -1,9 +1,16 @@
-const NAVER_API  = "https://blog.naver.com/PostTitleListAsync.nhn";
+let NAVER_API    = "https://blog.naver.com/PostTitleListAsync.nhn";
 const SERVER_API = "https://naver-linker.onrender.com";
 const SERVER_HEADERS = {
   "Content-Type": "application/json",
 };
 const COUNT_PER_PAGE = 30;
+
+// 네이버 API URL을 서버 Remote Config에서 동적으로 읽음
+// → 네이버가 URL 변경 시 CWS 재심사 없이 즉시 대응 가능
+fetch(`${SERVER_API}/api/config`, { cache: "no-store" })
+  .then((r) => r.json())
+  .then((data) => { if (data.naverApiUrl) NAVER_API = data.naverApiUrl; })
+  .catch(() => {});
 
 // 네이버 블로그 전체 글 목록 수집 (indexer.py 로직 → JS 포팅)
 async function fetchAllPosts(blogId) {

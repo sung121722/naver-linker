@@ -369,6 +369,7 @@ recoverBtn.addEventListener("click", async () => {
     recoverMsg.style.color = "#087f3d";
     recoverMsg.textContent = `✅ ${data.plan.toUpperCase()} 플랜 복구 완료. 블로그를 다시 등록해주세요.`;
     recoverRow.style.display = "none";
+    recoverBtn.disabled = false;
   } catch (e) {
     recoverMsg.style.display = "block";
     recoverMsg.style.color = "#c0392b";
@@ -565,7 +566,7 @@ async function doSearch(keyword) {
     renderSearchResults(currentResults);
   } catch (e) {
     const msg = e.message.includes("402")
-      ? "이번 달 무료 사용 횟수(30회)를 모두 사용했습니다.<br>다음 달에 초기화됩니다."
+      ? `이번 달 무료 사용 횟수(${state.dailyLimit}회)를 모두 사용했습니다.<br>다음 달에 초기화됩니다.`
       : e.message;
     searchResults.innerHTML = `<div class="empty">❌ ${msg}</div>`;
   } finally {
