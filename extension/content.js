@@ -109,12 +109,13 @@
 
     btn.addEventListener("click", () => {
       const keyword = getTitleFromEditor().slice(0, 50);
-      if (!keyword) {
-        btn.textContent = "✏️ 제목을 먼저 입력하세요";
-        setTimeout(() => { btn.textContent = "🔗 내부링크 체크"; }, 2000);
-        return;
+      if (keyword) {
+        // 제목 감지 성공 시 키워드도 전송
+        chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
+      } else {
+        // 제목 감지 실패해도 사이드패널 열기
+        chrome.runtime.sendMessage({ type: "OPEN_SIDE_PANEL" }).catch(() => {});
       }
-      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
       btn.textContent = "✅ 사이드 패널에서 확인";
       setTimeout(() => { btn.textContent = "🔗 내부링크 체크"; }, 2500);
     });

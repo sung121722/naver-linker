@@ -243,6 +243,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       } else if (msg.type === "DUPLICATE") {
         const result = await detectDuplicate(msg.sessionId, msg.blogId, msg.keyword);
         sendResponse({ ok: true, ...result });
+      } else if (msg.type === "OPEN_SIDE_PANEL") {
+        chrome.sidePanel.open({ tabId: _sender.tab.id });
+        sendResponse({ ok: true });
       } else {
         sendResponse({ ok: false, error: "Unknown message type" });
       }
