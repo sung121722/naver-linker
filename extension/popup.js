@@ -752,23 +752,20 @@ async function _fetchAllPosts(blogId) {
 
 async function _directCall(msg) {
   if (msg.type === "FETCH_POSTS") {
-    if (_IS_WHALE) {
-      // Whale: 서버 릴레이에서 posts 가져오기 (chrome.* API 불필요)
-      // content.js → POST /api/whale-relay → 서버 저장
-      // popup.js  → GET  /api/whale-relay/{blogId} → 서버에서 읽기
-      const relayPosts = await _whaleRelayFetch(msg.blogId);
-      if (relayPosts) return { ok: true, posts: relayPosts };
-      throw new Error("블로그 작성 페이지를 열고 🔗 버튼이 ✅로 바뀐 후 다시 시도해주세요.");
+    // 1순위: 서버 릴레이 (Whale에서 content.js가 저장 — _IS_WHALE 판별 불필요)
+    const relayPosts = await _whaleRelayFetch(msg.blogId);
+    if (relayPosts) return { ok: true, posts: relayPosts };
+
+    // 2순위: chrome.storage 캐시 (콜백 방식 — Promise API는 Whale popup에서 undefined)
+    const cached = await _storageGet("naver_linker_posts_cache");
+    if (cached && cached.blogId === msg.blogId && cached.posts?.length > 0) {
+      return { ok: true, posts: cached.posts };
     }
-    // Chrome: 1순위 캐시, 2순위 직접 fetch
-    try {
-      const stored = await chrome.storage.local.get("naver_linker_posts_cache");
-      const cache = stored["naver_linker_posts_cache"];
-      if (cache && cache.blogId === msg.blogId && Array.isArray(cache.posts) && cache.posts.length > 0) {
-        return { ok: true, posts: cache.posts };
-      }
-    } catch (_) {}
-    return { ok: true, posts: await _fetchAllPosts(msg.blogId) };
+
+    // 3순위: popup 직접 fetch — Chrome SW 죽었을 때만 여기 도달
+    // Whale에서는 _fetchAllPosts가 Extension context invalidated 유발하므로 실행 금지
+    // → 이 시점까지 왔다면 content.js가 아직 수집 중 → 안내 메시지
+    throw new Error("블로그 작성 페이지에서 🔗 버튼이 ✅로 바뀐 후 다시 시도해주세요.");
   }
   if (msg.type === "INDEX_BLOG") {
     const body = { blog_id: msg.blogId, posts: msg.posts, source: "extension" };
