@@ -58,9 +58,13 @@ const showRecoverBtn = document.getElementById("showRecoverBtn");
 const recoverRow = document.getElementById("recoverRow");
 const recoverEmailInput = document.getElementById("recoverEmailInput");
 const recoverEmailBtn = document.getElementById("recoverEmailBtn");
-const recoverInput = document.getElementById("recoverInput");
-const recoverBtn = document.getElementById("recoverBtn");
 const recoverMsg = document.getElementById("recoverMsg");
+const otpRow = document.getElementById("otpRow");
+const otpInput = document.getElementById("otpInput");
+const otpVerifyBtn = document.getElementById("otpVerifyBtn");
+const closePanelBtn = document.getElementById("closePanelBtn");
+
+closePanelBtn.addEventListener("click", () => window.close());
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
@@ -362,40 +366,61 @@ cancelBtn.addEventListener("click", async () => {
   }
 });
 
-async function autoRecoverByEmail(email) {
-  try {
-    const res = await fetch(`${SERVER_URL}/api/auto-recover?email=${encodeURIComponent(email)}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.ok || !data.session_id) return;
-    const planRes = await fetch(`${SERVER_URL}/api/plan/${data.session_id}`);
-    if (!planRes.ok) return;
-    const planData = await planRes.json();
-    state.sessionId = data.session_id;
-    state.plan = planData.plan;
-    state.searchCount = planData.search_count;
-    state.dailyLimit = planData.daily_limit;
-    state.emailRegistered = true;
-    saveState();
-    showStatus(`✅ ${planData.plan.toUpperCase()} 플랜 복구 완료. 블로그 ID를 입력하고 수집해주세요.`, "success");
-    featureSection.style.display = "block";
-    updateLimitBar();
-    updatePlanBar();
-  } catch (_) {}
+function autoRecoverByEmail(email) {
+  // OTP 방식으로 변경 — 자동 복구 불가, 이메일 pre-fill 후 복구 UI 노출
+  recoverEmailInput.value = email;
+  recoverRow.style.display = "block";
+  showStatus(`📧 ${email} 으로 인증코드를 받아 복구해주세요.`, "info");
 }
 
 showRecoverBtn.addEventListener("click", () => {
   recoverRow.style.display = recoverRow.style.display === "none" ? "block" : "none";
 });
 
+// Step 1: 이메일 입력 → 인증코드 발송
 recoverEmailBtn.addEventListener("click", async () => {
   const email = recoverEmailInput.value.trim();
   if (!email || !email.includes("@")) return;
   recoverEmailBtn.disabled = true;
   recoverMsg.style.display = "none";
+  otpRow.style.display = "none";
   try {
     const res = await fetch(`${SERVER_URL}/api/auto-recover?email=${encodeURIComponent(email)}`);
-    if (!res.ok) throw new Error("등록된 구독 정보를 찾을 수 없습니다.");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "등록된 구독 정보를 찾을 수 없습니다.");
+    }
+    recoverMsg.style.display = "block";
+    recoverMsg.style.color = "#1a6fa8";
+    recoverMsg.textContent = "📧 인증코드를 이메일로 발송했습니다.";
+    otpRow.style.display = "block";
+    otpInput.value = "";
+    otpInput.focus();
+  } catch (e) {
+    recoverMsg.style.display = "block";
+    recoverMsg.style.color = "#c0392b";
+    recoverMsg.textContent = e.message || "발송 실패";
+  } finally {
+    recoverEmailBtn.disabled = false;
+  }
+});
+
+// Step 2: 인증코드 입력 → 복구 완료
+otpVerifyBtn.addEventListener("click", async () => {
+  const email = recoverEmailInput.value.trim();
+  const code = otpInput.value.trim();
+  if (!code || code.length !== 6) return;
+  otpVerifyBtn.disabled = true;
+  try {
+    const res = await fetch(`${SERVER_URL}/api/verify-recovery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "인증 실패");
+    }
     const data = await res.json();
     const planRes = await fetch(`${SERVER_URL}/api/plan/${data.session_id}`);
     const planData = await planRes.json();
@@ -409,6 +434,7 @@ recoverEmailBtn.addEventListener("click", async () => {
     recoverMsg.style.display = "block";
     recoverMsg.style.color = "#087f3d";
     recoverMsg.textContent = `✅ ${planData.plan.toUpperCase()} 플랜 복구 완료. 블로그를 다시 등록해주세요.`;
+    otpRow.style.display = "none";
     recoverRow.style.display = "none";
     featureSection.style.display = "block";
     updateLimitBar();
@@ -416,39 +442,12 @@ recoverEmailBtn.addEventListener("click", async () => {
   } catch (e) {
     recoverMsg.style.display = "block";
     recoverMsg.style.color = "#c0392b";
-    recoverMsg.textContent = e.message || "복구 실패";
+    recoverMsg.textContent = e.message || "인증 실패";
   } finally {
-    recoverEmailBtn.disabled = false;
+    otpVerifyBtn.disabled = false;
   }
 });
 
-recoverBtn.addEventListener("click", async () => {
-  const sid = recoverInput.value.trim();
-  if (!sid) return;
-  recoverBtn.disabled = true;
-  recoverMsg.style.display = "none";
-  try {
-    const res = await fetch(`${SERVER_URL}/api/plan/${sid}`);
-    if (!res.ok) throw new Error("유효하지 않은 세션 ID입니다.");
-    const data = await res.json();
-    if (data.plan === "free") throw new Error("유료 플랜 세션만 복구 가능합니다.");
-    state.sessionId = sid;
-    state.plan = data.plan;
-    state.searchCount = data.search_count;
-    state.dailyLimit = data.daily_limit;
-    saveState();
-    recoverMsg.style.display = "block";
-    recoverMsg.style.color = "#087f3d";
-    recoverMsg.textContent = `✅ ${data.plan.toUpperCase()} 플랜 복구 완료. 블로그를 다시 등록해주세요.`;
-    recoverRow.style.display = "none";
-    recoverBtn.disabled = false;
-  } catch (e) {
-    recoverMsg.style.display = "block";
-    recoverMsg.style.color = "#c0392b";
-    recoverMsg.textContent = e.message || "복구 실패";
-    recoverBtn.disabled = false;
-  }
-});
 
 async function loadBlogSwitcher() {
   if (!state.sessionId) return;

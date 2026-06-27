@@ -30,7 +30,7 @@ async function fetchAllPosts(blogId) {
   const baseUrl = `https://blog.naver.com/${blogId}`;
   for (const pageData of allPages) {
     for (const item of pageData.postList || []) {
-      if (String(item.openType) !== "1") continue; // 전체공개만 수집
+      if (String(item.openType) === "0") continue; // 비공개 제외
       posts.push({
         title: decodeTitle(item.title || ""),
         url: `${baseUrl}/${item.logNo}`,

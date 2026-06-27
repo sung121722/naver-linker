@@ -22,10 +22,24 @@
       padding: 14px 16px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
     }
     .header h1 { font-size: 15px; font-weight: 700; }
     .header .sub { font-size: 11px; opacity: 0.85; margin-top: 1px; }
+    .close-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      opacity: 0.8;
+      padding: 2px 4px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .close-btn:hover { opacity: 1; background: rgba(0,0,0,0.15); }
 
     .section {
       background: white;
@@ -348,6 +362,7 @@
     <h1>🔗 네이버 내부링크 도우미</h1>
     <div class="sub">블로그 내부링크 추천 · 중복 글 감지</div>
   </div>
+  <button class="close-btn" id="closePanelBtn" title="닫기">✕</button>
 </div>
 
 <!-- 블로그 등록 섹션 -->
@@ -367,12 +382,15 @@
       <input type="email" id="recoverEmailInput" placeholder="구독 이메일 입력" style="flex:1;border:1px solid #03C75A;border-radius:7px;padding:8px 10px;font-size:12px;outline:none;" />
       <button id="recoverEmailBtn">이메일 복구</button>
     </div>
-    <div style="font-size:11px;color:#adb5bd;margin-bottom:4px;">또는 세션 ID로 복구:</div>
-    <div style="display:flex;gap:6px;">
-      <input type="text" id="recoverInput" placeholder="세션 ID 입력" style="flex:1;border:1px solid #dee2e6;border-radius:7px;padding:8px 10px;font-size:12px;outline:none;" />
-      <button id="recoverBtn" style="background:#adb5bd;">복구</button>
+    <!-- OTP 입력 (이메일 복구 버튼 클릭 후 노출) -->
+    <div id="otpRow" style="display:none;margin-top:8px;">
+      <div style="font-size:11px;color:#868e96;margin-bottom:6px;">이메일로 발송된 6자리 인증코드를 입력하세요. (10분 유효)</div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="otpInput" placeholder="인증코드 6자리" maxlength="6" style="flex:1;border:1px solid #03C75A;border-radius:7px;padding:8px 10px;font-size:16px;outline:none;letter-spacing:6px;text-align:center;" />
+        <button id="otpVerifyBtn">확인</button>
+      </div>
     </div>
-    <div id="recoverMsg" style="font-size:11px;margin-top:4px;display:none;"></div>
+    <div id="recoverMsg" style="font-size:11px;margin-top:6px;display:none;"></div>
   </div>
 </div>
 

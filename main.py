@@ -1,4 +1,6 @@
 import uuid
+import random
+import string
 import asyncio
 import os
 import re
@@ -592,12 +594,55 @@ def register_email(req: EmailRegisterRequest):
 class RecoverRequest(BaseModel):
     email: str
 
+# OTP 인증코드 저장소 (메모리) — email → {code, expires_at}
+_otp_store: dict[str, dict] = {}
+_OTP_TTL = 600  # 10분
+
 @app.get("/api/auto-recover")
 def auto_recover(email: str):
-    """이메일로 세션 자동 복구 — session_id 직접 반환 (유료 플랜만)."""
+    """이메일로 6자리 인증코드 발송 — session_id 직접 반환하지 않음 (보안)."""
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="유효한 이메일을 입력해주세요.")
     user = db.get_session_by_email(email)
+    if not user or user["plan"] == "free":
+        raise HTTPException(status_code=404, detail="유료 플랜 구독 정보를 찾을 수 없습니다.")
+    code = "".join(random.choices(string.digits, k=6))
+    _otp_store[email] = {"code": code, "expires_at": time.time() + _OTP_TTL}
+    try:
+        _send_email(
+            email,
+            "[내부링크 도우미] 복구 인증코드",
+            f"""<div style="font-family:-apple-system,sans-serif;max-width:480px;margin:0 auto;padding:32px 16px">
+              <h2 style="color:#03C75A">🔗 네이버 내부링크 도우미</h2>
+              <p>브라우저 복구 인증코드입니다. <strong>10분</strong> 내에 입력해주세요.</p>
+              <div style="background:#f8f9fa;border-radius:8px;padding:20px;text-align:center;margin:20px 0">
+                <p style="font-size:36px;font-weight:700;letter-spacing:10px;color:#212529;margin:0">{code}</p>
+              </div>
+              <p style="font-size:12px;color:#868e96">본인이 요청하지 않았다면 이 이메일을 무시하세요.</p>
+            </div>"""
+        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="이메일 발송에 실패했습니다. 관리자에게 문의해주세요.")
+    return {"ok": True, "sent": True}
+
+
+class VerifyRecoveryRequest(BaseModel):
+    email: str
+    code: str
+
+@app.post("/api/verify-recovery")
+def verify_recovery(req: VerifyRecoveryRequest):
+    """인증코드 확인 → session_id 반환 (일회용)."""
+    entry = _otp_store.get(req.email)
+    if not entry:
+        raise HTTPException(status_code=400, detail="인증코드를 먼저 요청해주세요.")
+    if time.time() > entry["expires_at"]:
+        _otp_store.pop(req.email, None)
+        raise HTTPException(status_code=400, detail="인증코드가 만료되었습니다. 다시 요청해주세요.")
+    if entry["code"] != req.code:
+        raise HTTPException(status_code=400, detail="인증코드가 올바르지 않습니다.")
+    _otp_store.pop(req.email, None)
+    user = db.get_session_by_email(req.email)
     if not user or user["plan"] == "free":
         raise HTTPException(status_code=404, detail="유료 플랜 구독 정보를 찾을 수 없습니다.")
     return {"ok": True, "session_id": user["session_id"], "plan": user["plan"]}
