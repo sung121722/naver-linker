@@ -1,7 +1,7 @@
-{
+﻿{
   "manifest_version": 3,
   "name": "네이버 내부링크 도우미",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "네이버 블로그 글 작성 시 관련 내부링크를 자동 추천하고 중복 글을 감지해주는 SEO 도우미",
   "homepage_url": "https://naver-linker.onrender.com",
 
