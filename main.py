@@ -944,20 +944,25 @@ async def billing_success(authKey: str, customerKey: str, session_id: str = "", 
     </ol>
   </div>
   <div class="email-box">
-    <p>⚠️ 브라우저 초기화 시 세션이 분실될 수 있습니다.<br>이메일을 등록하면 언제든 복구할 수 있습니다.</p>
+    <p>📧 이메일을 등록하면 브라우저 초기화 후에도 구독을 복구할 수 있습니다.<br><strong>등록 후 탭을 닫을 수 있습니다.</strong></p>
     <div class="email-row">
       <input type="email" id="emailInput" placeholder="이메일 주소 입력" />
       <button onclick="registerEmail()">등록</button>
     </div>
     <div class="email-msg" id="emailMsg"></div>
   </div>
-  <button onclick="window.close()" style="margin-top:16px">탭 닫기</button>
+  <button id="closeBtn" onclick="window.close()" style="margin-top:16px;opacity:0.35;cursor:not-allowed;" disabled>이메일 등록 후 닫기</button>
 </div>
 <script>
 async function registerEmail() {{
   const email = document.getElementById('emailInput').value.trim();
   const msg = document.getElementById('emailMsg');
-  if (!email) return;
+  if (!email || !email.includes('@')) {{
+    msg.style.display = 'block';
+    msg.style.color = '#c0392b';
+    msg.textContent = '유효한 이메일을 입력해주세요.';
+    return;
+  }}
   try {{
     const res = await fetch('/api/register-email', {{
       method: 'POST',
@@ -968,6 +973,11 @@ async function registerEmail() {{
     if (res.ok) {{
       msg.style.color = '#087f3d';
       msg.textContent = '✅ 이메일이 등록되었습니다.';
+      const btn = document.getElementById('closeBtn');
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      btn.textContent = '탭 닫기';
     }} else {{
       msg.style.color = '#c0392b';
       msg.textContent = '등록에 실패했습니다. 다시 시도해주세요.';
