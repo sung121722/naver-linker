@@ -268,18 +268,6 @@ function updatePlanBar() {
   // 유료 플랜 + 이메일 미등록 시 배너
   emailBanner.style.display = (plan !== "free" && !state.emailRegistered) ? "block" : "none";
 
-  // 유료 플랜일 때만 통계 표시
-  const statsRow = document.getElementById("statsRow");
-  const linksCopiedCount = document.getElementById("linksCopiedCount");
-  const timeSavedCount = document.getElementById("timeSavedCount");
-  if (plan !== "free" && statsRow) {
-    const copied = state.linksCopied || 0;
-    linksCopiedCount.textContent = copied;
-    timeSavedCount.textContent = copied * 5;
-    statsRow.style.display = "block";
-  } else if (statsRow) {
-    statsRow.style.display = "none";
-  }
 
   // Pro 플랜일 때만 계정 전환 드롭다운 표시
   if (plan === "pro") {
