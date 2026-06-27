@@ -349,7 +349,7 @@ async def search(req: SearchRequest, request: Request):
         if count >= limit:
             raise HTTPException(status_code=402, detail="이용 한도를 초과했습니다.")
 
-    top_n = max(1, min(req.top_n, 20))
+    top_n = max(1, min(req.top_n, 50))
 
     if req.sort == "latest":
         results = db.get_latest_by_keyword(blog_id, req.keyword, top_n)
@@ -416,7 +416,7 @@ async def duplicate(req: DuplicateRequest, request: Request):
 
     loop = asyncio.get_running_loop()
     try:
-        top_n = max(1, min(req.top_n, 20))
+        top_n = max(1, min(req.top_n, 50))
         result = await loop.run_in_executor(
             None, matcher.find_duplicates, posts, req.keyword, top_n
         )
