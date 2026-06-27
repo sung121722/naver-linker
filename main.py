@@ -21,6 +21,7 @@ TOSS_CLIENT_KEY    = os.environ.get("TOSS_CLIENT_KEY", "")
 BASE_URL           = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
 DEV_SECRET         = os.environ.get("DEV_SECRET", "")
 RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
+BREVO_API_KEY      = os.environ.get("BREVO_API_KEY", "")
 
 PLAN_PRICES = {
     "light": 2900,
@@ -563,17 +564,22 @@ def ping():
 
 
 def _send_email(to: str, subject: str, body: str):
-    if not RESEND_API_KEY:
-        raise RuntimeError("RESEND_API_KEY not set")
+    if not BREVO_API_KEY:
+        raise RuntimeError("BREVO_API_KEY not set")
     import requests as _requests
     resp = _requests.post(
-        "https://api.resend.com/emails",
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
-        json={"from": "내부링크 도우미 <onboarding@resend.dev>", "to": [to], "subject": subject, "html": body},
+        "https://api.brevo.com/v3/smtp/email",
+        headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
+        json={
+            "sender": {"name": "내부링크 도우미", "email": "kang020672@gmail.com"},
+            "to": [{"email": to}],
+            "subject": subject,
+            "htmlContent": body,
+        },
         timeout=10,
     )
     if resp.status_code >= 400:
-        raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
+        raise RuntimeError(f"Brevo error {resp.status_code}: {resp.text}")
 
 
 class EmailRegisterRequest(BaseModel):
