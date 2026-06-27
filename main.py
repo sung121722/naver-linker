@@ -365,18 +365,22 @@ async def search(req: SearchRequest, request: Request):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"검색 오류: {str(e)}")
 
-    db.increment_search(session_id, blog_id)
+    # 최신순은 DB 직접 조회라 횟수 차감 없음 — 관련순(Claude AI)만 차감
+    if req.sort != "latest":
+        db.increment_search(session_id, blog_id)
+        if plan == "free":
+            db.increment_ip_search(client_ip)
     if plan == "free":
-        db.increment_ip_search(client_ip)
-        remaining = max(0, limit - (ip_count + 1))
+        remaining = max(0, limit - (db.get_ip_search_count(client_ip)))
     else:
-        remaining = max(0, limit - (count + 1))
+        new_count_val = count + (0 if req.sort == "latest" else 1)
+        remaining = max(0, limit - new_count_val)
 
     # 날짜 정규화 (DB에 남은 상대시간 "N분 전" 등 처리)
     for r in results:
         r["date"] = normalize_date_srv(r.get("date", "") or "")
 
-    new_count = count + 1
+    new_count = count + (0 if req.sort == "latest" else 1)
     return {
         "ok": True,
         "results": results,
