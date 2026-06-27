@@ -621,7 +621,10 @@ def auto_recover(email: str):
               <p style="font-size:12px;color:#868e96">본인이 요청하지 않았다면 이 이메일을 무시하세요.</p>
             </div>"""
         )
-    except Exception:
+    except Exception as e:
+        import traceback
+        print(f"[EMAIL ERROR] {type(e).__name__}: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="이메일 발송에 실패했습니다. 관리자에게 문의해주세요.")
     return {"ok": True, "sent": True}
 
