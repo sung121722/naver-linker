@@ -81,12 +81,58 @@
       const keyword = getTitleFromEditor().slice(0, 50);
       if (!keyword || keyword === _lastAutoKeyword) return;
       _lastAutoKeyword = keyword;
-      chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
+      try { chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {}); } catch (_) {}
     }, 2000);
   });
 
   // ── 이하 top frame 전용 ───────────────────────────────────
   if (window !== window.top) return;
+
+  // ── FETCH_POSTS_PROXY: popup.js 요청 → 페이지 컨텍스트에서 Naver API 호출 ──
+  // SW(서비스 워커)가 죽어도 동작 — 페이지 fetch는 SW와 무관
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type !== "FETCH_POSTS_PROXY") return;
+    (async () => {
+      try {
+        const posts = await _proxyFetchAll(msg.blogId);
+        sendResponse({ ok: true, posts });
+      } catch (e) {
+        sendResponse({ ok: false, error: e.message });
+      }
+    })();
+    return true;
+  });
+
+  async function _proxyFetchAll(blogId) {
+    const PER = 30;
+    const API = "https://blog.naver.com/PostTitleListAsync.nhn";
+    const fetchPage = async (page) => {
+      const url = `${API}?blogId=${encodeURIComponent(blogId)}&currentPage=${page}&countPerPage=${PER}&totalCount=0`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`Naver API ${r.status}`);
+      return JSON.parse((await r.text()).replace(/\\(?!["\\/bfnrtu])/g, "\\\\"));
+    };
+    const first = await fetchPage(1);
+    const total = parseInt(first.totalCount || 0);
+    if (!total) return [];
+    const rest = await Promise.all(
+      Array.from({ length: Math.ceil(total / PER) - 1 }, (_, i) => fetchPage(i + 2))
+    );
+    const posts = [];
+    const base = `https://blog.naver.com/${blogId}`;
+    for (const pg of [first, ...rest]) {
+      for (const item of pg.postList || []) {
+        if (String(item.openType) === "0") continue;
+        let t = item.title || "";
+        try { t = decodeURIComponent(t.replace(/\+/g, " ")); } catch (_) { t = t.replace(/\+/g, " "); }
+        t = t.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+             .replace(/&quot;/g,'"').replace(/&#39;/g,"'")
+             .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(+c));
+        posts.push({ title: t, url: `${base}/${item.logNo}`, date: item.addDate || "" });
+      }
+    }
+    return posts;
+  }
 
   function injectFloatingBtn() {
     if (document.getElementById("nlinker-float-btn")) return;
@@ -111,10 +157,10 @@
       const keyword = getTitleFromEditor().slice(0, 50);
       if (keyword) {
         // 제목 감지 성공 시 키워드도 전송
-        chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {});
+        try { chrome.runtime.sendMessage({ type: "EDITOR_TITLE", keyword }).catch(() => {}); } catch (_) {}
       } else {
         // 제목 감지 실패해도 사이드패널 열기
-        chrome.runtime.sendMessage({ type: "OPEN_SIDE_PANEL" }).catch(() => {});
+        try { chrome.runtime.sendMessage({ type: "OPEN_SIDE_PANEL" }).catch(() => {}); } catch (_) {}
       }
       btn.textContent = "✅ 사이드 패널에서 확인";
       setTimeout(() => { btn.textContent = "🔗 내부링크 체크"; }, 2500);
@@ -144,6 +190,37 @@
 
   const detectedBlogId = detectBlogId();
   if (detectedBlogId) {
-    chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId }).catch(() => {});
+    try { chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId }).catch(() => {}); } catch (_) {}
+    // Whale 대비: 페이지 컨텍스트에서 글 목록 프리패치 → storage 캐시
+    // popup.js가 SW 없이도 캐시에서 바로 읽을 수 있음
+    _prefetchToStorage(detectedBlogId);
+  }
+
+  async function _prefetchToStorage(blogId) {
+    const btn = document.getElementById("nlinker-float-btn");
+    try {
+      const posts = await _proxyFetchAll(blogId);
+      if (btn) btn.textContent = `🔗 저장 중... (${posts.length}개)`;
+
+      // 방법 1: 서버 릴레이 (Whale 전용 — chrome.storage 불필요)
+      try {
+        const r = await fetch(`${SERVER_API}/api/whale-relay`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blogId, posts }),
+        });
+        if (r.ok) {
+          if (btn) btn.textContent = `🔗 내부링크 체크 ✅ (${posts.length}개)`;
+        }
+      } catch (_) {}
+
+      // 방법 2: chrome.storage 병행 저장 (Chrome 호환성 유지)
+      try {
+        chrome.storage.local.set({ naver_linker_posts_cache: { blogId, posts, cachedAt: Date.now() } });
+      } catch (_) {}
+
+    } catch (e) {
+      if (btn) btn.textContent = `⚠️ 글 목록 로드 실패`;
+    }
   }
 })();

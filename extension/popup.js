@@ -1,6 +1,11 @@
 // storage key
 const STORAGE_KEY = "naver_linker_state";
 
+// Whale 감지 — 최상단에서 정의 (초기화 시점 분기용)
+const _IS_WHALE = /Whale/i.test(navigator.userAgent);
+// Whale용 posts 캐시 — init 시점에 eager-load, cross-origin fetch 없이 재사용
+let _whalePostsCache = null;
+
 let state = {
   blogId: "",
   sessionId: "",
@@ -197,7 +202,13 @@ async function silentSync(blogId) {
 }
 
 // 초기화: 저장된 상태 복원
-chrome.storage.local.get(STORAGE_KEY, (data) => {
+// Whale: posts 캐시도 동시에 eager-load (이후 cross-origin fetch가 context를 kill하기 전에)
+const _initKeys = [STORAGE_KEY, "naver_linker_posts_cache"];
+chrome.storage.local.get(_initKeys, (data) => {
+  // Whale: posts 캐시 즉시 저장 (나중에 storage 접근 불가해질 수 있음)
+  if (_IS_WHALE && data["naver_linker_posts_cache"]) {
+    _whalePostsCache = data["naver_linker_posts_cache"];
+  }
   if (data[STORAGE_KEY]) {
     Object.assign(state, data[STORAGE_KEY]);
     blogIdInput.value = state.blogId;
@@ -208,7 +219,8 @@ chrome.storage.local.get(STORAGE_KEY, (data) => {
       updatePlanBar();
       // 팝업 열 때마다 플랜 서버 동기화 (결제 후 자동 반영)
       fetchPlan();
-      silentSync(state.blogId);
+      // Whale: silentSync 금지 — cross-origin fetch가 extension context를 영구 kill함
+      if (!_IS_WHALE) silentSync(state.blogId);
     }
   }
 });
@@ -555,6 +567,7 @@ async function doSearch(keyword) {
     state.searchCount = state.dailyLimit - (relRes.remaining ?? 0);
     saveState();
     updateLimitBar();
+    updatePlanBar();
 
     relevanceResults = relRes.results || [];
     latestResults = latRes.ok ? (latRes.results || []) : [];
@@ -698,15 +711,147 @@ document.querySelectorAll(".tab").forEach((tab) => {
 });
 
 // ── 유틸 ─────────────────────────────────────────────────
+
+// 서비스 워커 비활성 시 popup.js에서 직접 API 호출 (Whale 등 호환성)
+const _NAVER_API = "https://blog.naver.com/PostTitleListAsync.nhn";
+const _PER_PAGE  = 30;
+const _H         = { "Content-Type": "application/json" };
+
+async function _fetchPage(blogId, page) {
+  const url = `${_NAVER_API}?blogId=${encodeURIComponent(blogId)}&currentPage=${page}&countPerPage=${_PER_PAGE}&totalCount=0`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Naver API error: ${r.status}`);
+  const text = await r.text();
+  return JSON.parse(text.replace(/\\(?!["\\/bfnrtu])/g, "\\\\"));
+}
+
+function _decodeTitle(t) {
+  let s = t;
+  try { s = decodeURIComponent(t.replace(/\+/g, " ")); } catch (_) { s = t.replace(/\+/g, " "); }
+  return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+          .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(+c));
+}
+
+async function _fetchAllPosts(blogId) {
+  const first = await _fetchPage(blogId, 1);
+  const total = parseInt(first.totalCount || 0);
+  if (!total) return [];
+  const pages = Math.ceil(total / _PER_PAGE);
+  const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => _fetchPage(blogId, i + 2)));
+  const posts = [];
+  const base = `https://blog.naver.com/${blogId}`;
+  for (const pg of [first, ...rest]) {
+    for (const item of pg.postList || []) {
+      if (String(item.openType) === "0") continue; // 비공개 제외
+      posts.push({ title: _decodeTitle(item.title || ""), url: `${base}/${item.logNo}`, date: item.addDate || "" });
+    }
+  }
+  return posts;
+}
+
+async function _directCall(msg) {
+  if (msg.type === "FETCH_POSTS") {
+    if (_IS_WHALE) {
+      // Whale: 서버 릴레이에서 posts 가져오기 (chrome.* API 불필요)
+      // content.js → POST /api/whale-relay → 서버 저장
+      // popup.js  → GET  /api/whale-relay/{blogId} → 서버에서 읽기
+      const relayPosts = await _whaleRelayFetch(msg.blogId);
+      if (relayPosts) return { ok: true, posts: relayPosts };
+      throw new Error("블로그 작성 페이지를 열고 🔗 버튼이 ✅로 바뀐 후 다시 시도해주세요.");
+    }
+    // Chrome: 1순위 캐시, 2순위 직접 fetch
+    try {
+      const stored = await chrome.storage.local.get("naver_linker_posts_cache");
+      const cache = stored["naver_linker_posts_cache"];
+      if (cache && cache.blogId === msg.blogId && Array.isArray(cache.posts) && cache.posts.length > 0) {
+        return { ok: true, posts: cache.posts };
+      }
+    } catch (_) {}
+    return { ok: true, posts: await _fetchAllPosts(msg.blogId) };
+  }
+  if (msg.type === "INDEX_BLOG") {
+    const body = { blog_id: msg.blogId, posts: msg.posts, source: "extension" };
+    if (msg.sessionId) body.session_id = msg.sessionId;
+    if (msg.forceReplace) body.force_replace = true;
+    const r = await fetch(`${SERVER_URL}/api/index`, { method: "POST", headers: _H, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+    return { ok: true, ...await r.json() };
+  }
+  if (msg.type === "SEARCH") {
+    const r = await fetch(`${SERVER_URL}/api/search`, {
+      method: "POST", headers: _H,
+      body: JSON.stringify({ session_id: msg.sessionId, blog_id: msg.blogId, keyword: msg.keyword, top_n: msg.topN, sort: msg.sort }),
+    });
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || `Server error: ${r.status}`); }
+    return { ok: true, ...await r.json() };
+  }
+  if (msg.type === "DUPLICATE") {
+    const r = await fetch(`${SERVER_URL}/api/duplicate`, {
+      method: "POST", headers: _H,
+      body: JSON.stringify({ session_id: msg.sessionId, blog_id: msg.blogId, keyword: msg.keyword }),
+    });
+    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+    return { ok: true, ...await r.json() };
+  }
+  if (msg.type === "DELETE_BLOG") {
+    const r = await fetch(`${SERVER_URL}/api/user-blog`, {
+      method: "DELETE", headers: _H,
+      body: JSON.stringify({ session_id: msg.sessionId, blog_id: msg.blogId }),
+    });
+    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+    return { ok: true, ...await r.json() };
+  }
+  return { ok: false, error: "Unknown message type" };
+}
+
+// Whale 릴레이: 서버에서 content.js가 저장한 posts 가져오기
+// chrome.* API 완전 불필요 — 일반 fetch로 우리 서버에서 읽기
+async function _whaleRelayFetch(blogId) {
+  try {
+    const r = await fetch(`${SERVER_URL}/api/whale-relay/${encodeURIComponent(blogId)}`);
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (data.ok && Array.isArray(data.posts) && data.posts.length > 0) return data.posts;
+  } catch (_) {}
+  return null;
+}
+
+// Chrome용 콜백 방식 storage 읽기 (Whale에서는 미사용)
+function _storageGet(key) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get(key, (r) => {
+        if (chrome.runtime.lastError) { resolve(null); return; }
+        resolve((r && r[key]) || null);
+      });
+    } catch (_) { resolve(null); }
+  });
+}
+
 function sendMsg(msg) {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage(msg, (resp) => {
-      if (chrome.runtime.lastError) {
-        resolve({ ok: false, error: chrome.runtime.lastError.message });
-      } else {
-        resolve(resp ?? { ok: false, error: "응답 없음" });
-      }
-    });
+    if (_IS_WHALE) {
+      // Whale: background.js 우회, 직접 API 호출
+      _directCall(msg).then(resolve).catch((e) => resolve({ ok: false, error: e.message }));
+      return;
+    }
+    // Chrome: background.js 서비스 워커 사용
+    // lastError 또는 응답 내용에 "invalidated" 포함 시 직접 호출로 폴백
+    try {
+      chrome.runtime.sendMessage(msg, (resp) => {
+        const swDead =
+          !!chrome.runtime.lastError ||
+          (resp && !resp.ok && typeof resp.error === "string" && resp.error.toLowerCase().includes("invalidated"));
+        if (swDead) {
+          _directCall(msg).then(resolve).catch((e) => resolve({ ok: false, error: e.message }));
+        } else {
+          resolve(resp ?? { ok: false, error: "응답 없음" });
+        }
+      });
+    } catch (_) {
+      _directCall(msg).then(resolve).catch((e) => resolve({ ok: false, error: e.message }));
+    }
   });
 }
 
