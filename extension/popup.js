@@ -377,7 +377,7 @@ async function autoRecoverByEmail(email) {
     state.dailyLimit = planData.daily_limit;
     state.emailRegistered = true;
     saveState();
-    showStatus(`✅ 이메일로 자동 복구 — ${planData.plan.toUpperCase()} 플랜`, "success");
+    showStatus(`✅ ${planData.plan.toUpperCase()} 플랜 복구 완료. 블로그 ID를 입력하고 수집해주세요.`, "success");
     featureSection.style.display = "block";
     updateLimitBar();
     updatePlanBar();
