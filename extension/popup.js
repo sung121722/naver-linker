@@ -15,6 +15,7 @@ let state = {
   dailyLimit: 5,
   indexedAt: 0,
   emailRegistered: false,
+  email: "",
   linksCopied: 0,
 };
 
@@ -55,6 +56,8 @@ const switchBlogBtn = document.getElementById("switchBlogBtn");
 const deleteBlogBtn = document.getElementById("deleteBlogBtn");
 const showRecoverBtn = document.getElementById("showRecoverBtn");
 const recoverRow = document.getElementById("recoverRow");
+const recoverEmailInput = document.getElementById("recoverEmailInput");
+const recoverEmailBtn = document.getElementById("recoverEmailBtn");
 const recoverInput = document.getElementById("recoverInput");
 const recoverBtn = document.getElementById("recoverBtn");
 const recoverMsg = document.getElementById("recoverMsg");
@@ -217,10 +220,10 @@ chrome.storage.local.get(_initKeys, (data) => {
       featureSection.style.display = "block";
       updateLimitBar();
       updatePlanBar();
-      // 팝업 열 때마다 플랜 서버 동기화 (결제 후 자동 반영)
       fetchPlan();
-      // Whale: silentSync 금지 — cross-origin fetch가 extension context를 영구 kill함
       if (!_IS_WHALE) silentSync(state.blogId);
+    } else if (state.email) {
+      autoRecoverByEmail(state.email);
     }
   }
 });
@@ -317,6 +320,7 @@ emailBannerBtn.addEventListener("click", async () => {
     emailBannerMsg.style.display = "block";
     if (res.ok) {
       state.emailRegistered = true;
+      state.email = email;
       saveState();
       emailBannerMsg.style.color = "#087f3d";
       emailBannerMsg.textContent = "✅ 등록 완료! 분실 시 이 이메일로 복구 가능합니다.";
@@ -358,8 +362,64 @@ cancelBtn.addEventListener("click", async () => {
   }
 });
 
+async function autoRecoverByEmail(email) {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/auto-recover?email=${encodeURIComponent(email)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.ok || !data.session_id) return;
+    const planRes = await fetch(`${SERVER_URL}/api/plan/${data.session_id}`);
+    if (!planRes.ok) return;
+    const planData = await planRes.json();
+    state.sessionId = data.session_id;
+    state.plan = planData.plan;
+    state.searchCount = planData.search_count;
+    state.dailyLimit = planData.daily_limit;
+    state.emailRegistered = true;
+    saveState();
+    showStatus(`✅ 이메일로 자동 복구 — ${planData.plan.toUpperCase()} 플랜`, "success");
+    featureSection.style.display = "block";
+    updateLimitBar();
+    updatePlanBar();
+  } catch (_) {}
+}
+
 showRecoverBtn.addEventListener("click", () => {
   recoverRow.style.display = recoverRow.style.display === "none" ? "block" : "none";
+});
+
+recoverEmailBtn.addEventListener("click", async () => {
+  const email = recoverEmailInput.value.trim();
+  if (!email || !email.includes("@")) return;
+  recoverEmailBtn.disabled = true;
+  recoverMsg.style.display = "none";
+  try {
+    const res = await fetch(`${SERVER_URL}/api/auto-recover?email=${encodeURIComponent(email)}`);
+    if (!res.ok) throw new Error("등록된 구독 정보를 찾을 수 없습니다.");
+    const data = await res.json();
+    const planRes = await fetch(`${SERVER_URL}/api/plan/${data.session_id}`);
+    const planData = await planRes.json();
+    state.sessionId = data.session_id;
+    state.plan = planData.plan;
+    state.searchCount = planData.search_count;
+    state.dailyLimit = planData.daily_limit;
+    state.email = email;
+    state.emailRegistered = true;
+    saveState();
+    recoverMsg.style.display = "block";
+    recoverMsg.style.color = "#087f3d";
+    recoverMsg.textContent = `✅ ${planData.plan.toUpperCase()} 플랜 복구 완료. 블로그를 다시 등록해주세요.`;
+    recoverRow.style.display = "none";
+    featureSection.style.display = "block";
+    updateLimitBar();
+    updatePlanBar();
+  } catch (e) {
+    recoverMsg.style.display = "block";
+    recoverMsg.style.color = "#c0392b";
+    recoverMsg.textContent = e.message || "복구 실패";
+  } finally {
+    recoverEmailBtn.disabled = false;
+  }
 });
 
 recoverBtn.addEventListener("click", async () => {

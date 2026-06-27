@@ -362,10 +362,15 @@
     <button id="showRecoverBtn" style="background:none;border:none;font-size:11px;color:#adb5bd;cursor:pointer;padding:0;text-decoration:underline;">🔄 구독 복구하기</button>
   </div>
   <div id="recoverRow" style="display:none;margin-top:6px;">
-    <div style="font-size:11px;color:#868e96;margin-bottom:6px;line-height:1.5;">기기를 바꾸거나 확장프로그램을 재설치했나요?<br>가입 시 등록한 이메일로 전송된 세션 ID를 입력하면 구독이 복구됩니다.</div>
+    <div style="font-size:11px;color:#868e96;margin-bottom:8px;line-height:1.5;">구독 시 등록한 이메일로 자동 복구됩니다.</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
+      <input type="email" id="recoverEmailInput" placeholder="구독 이메일 입력" style="flex:1;border:1px solid #03C75A;border-radius:7px;padding:8px 10px;font-size:12px;outline:none;" />
+      <button id="recoverEmailBtn">이메일 복구</button>
+    </div>
+    <div style="font-size:11px;color:#adb5bd;margin-bottom:4px;">또는 세션 ID로 복구:</div>
     <div style="display:flex;gap:6px;">
-      <input type="text" id="recoverInput" placeholder="이메일로 받은 세션 ID 입력" style="flex:1;border:1px solid #dee2e6;border-radius:7px;padding:8px 10px;font-size:12px;outline:none;" />
-      <button id="recoverBtn">복구</button>
+      <input type="text" id="recoverInput" placeholder="세션 ID 입력" style="flex:1;border:1px solid #dee2e6;border-radius:7px;padding:8px 10px;font-size:12px;outline:none;" />
+      <button id="recoverBtn" style="background:#adb5bd;">복구</button>
     </div>
     <div id="recoverMsg" style="font-size:11px;margin-top:4px;display:none;"></div>
   </div>

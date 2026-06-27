@@ -592,6 +592,17 @@ def register_email(req: EmailRegisterRequest):
 class RecoverRequest(BaseModel):
     email: str
 
+@app.get("/api/auto-recover")
+def auto_recover(email: str):
+    """이메일로 세션 자동 복구 — session_id 직접 반환 (유료 플랜만)."""
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="유효한 이메일을 입력해주세요.")
+    user = db.get_session_by_email(email)
+    if not user or user["plan"] == "free":
+        raise HTTPException(status_code=404, detail="유료 플랜 구독 정보를 찾을 수 없습니다.")
+    return {"ok": True, "session_id": user["session_id"], "plan": user["plan"]}
+
+
 @app.post("/api/recover-session")
 def recover_session(req: RecoverRequest):
     """이메일로 세션 ID 복구 — 등록된 이메일로 발송."""
