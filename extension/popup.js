@@ -611,7 +611,7 @@ async function doSearch(keyword) {
     if (!relRes.ok) throw new Error(relRes.error);
 
     state.dailyLimit = relRes.daily_limit || state.dailyLimit;
-    state.searchCount = state.dailyLimit - (relRes.remaining ?? 0);
+    state.searchCount = relRes.search_count ?? (state.dailyLimit - (relRes.remaining ?? 0));
     saveState();
     updateLimitBar();
     updatePlanBar();
