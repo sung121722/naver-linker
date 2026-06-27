@@ -20,8 +20,7 @@ TOSS_SECRET_KEY    = os.environ.get("TOSS_SECRET_KEY", "")
 TOSS_CLIENT_KEY    = os.environ.get("TOSS_CLIENT_KEY", "")
 BASE_URL           = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
 DEV_SECRET         = os.environ.get("DEV_SECRET", "")
-GMAIL_USER         = os.environ.get("GMAIL_USER", "")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
 
 PLAN_PRICES = {
     "light": 2900,
@@ -564,18 +563,17 @@ def ping():
 
 
 def _send_email(to: str, subject: str, body: str):
-    import smtplib
-    from email.mime.text import MIMEText
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        return
-    msg = MIMEText(body, "html", "utf-8")
-    msg["Subject"] = subject
-    msg["From"] = GMAIL_USER
-    msg["To"] = to
-    with smtplib.SMTP("smtp.gmail.com", 587) as s:
-        s.starttls()
-        s.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        s.sendmail(GMAIL_USER, to, msg.as_string())
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY not set")
+    import requests as _requests
+    resp = _requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+        json={"from": "내부링크 도우미 <onboarding@resend.dev>", "to": [to], "subject": subject, "html": body},
+        timeout=10,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
 
 
 class EmailRegisterRequest(BaseModel):
