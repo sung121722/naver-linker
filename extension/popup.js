@@ -252,13 +252,7 @@ function updatePlanBar() {
   usedCount2.textContent = used;
   limitCount2.textContent = limit;
 
-  // 서브 텍스트 (잔여 횟수 강조)
-  const remaining = Math.max(0, limit - used);
-  if (plan === "free") {
-    planSub.textContent = ` · 이번 달 ${remaining}회 남음`;
-  } else {
-    planSub.textContent = ` · ${remaining}회 남음`;
-  }
+  planSub.textContent = "";
 
   // 무료: 업그레이드 버튼 / 유료: 해지 버튼
   upgradeBtn.style.display = plan === "free" ? "block" : "none";
