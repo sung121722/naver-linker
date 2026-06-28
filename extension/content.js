@@ -45,8 +45,7 @@
     const url = window.location.href;
     if (url.includes("blog.naver.com") && (
       url.includes("PostWrite") ||
-      url.includes("Redirect=Write") ||
-      url.includes("blogId")
+      url.includes("Redirect=Write")
     )) return true;
     return CONFIG.editorDetectSelectors.some((s) => !!document.querySelector(s));
   }
