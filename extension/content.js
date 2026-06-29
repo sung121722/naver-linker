@@ -201,12 +201,19 @@
       const posts = await _proxyFetchAll(blogId);
       if (btn) btn.textContent = `🔗 저장 중... (${posts.length}개)`;
 
+      // 세션 ID 읽기 (서버 인증용)
+      let sessionId = "";
+      try {
+        const stored = await chrome.storage.local.get("naver_linker_state");
+        sessionId = stored?.naver_linker_state?.sessionId || "";
+      } catch (_) {}
+
       // 방법 1: 서버 릴레이 (Whale 전용 — chrome.storage 불필요)
       try {
         const r = await fetch(`${SERVER_API}/api/whale-relay`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ blogId, posts }),
+          body: JSON.stringify({ blogId, posts, sessionId }),
         });
         if (r.ok) {
           if (btn) btn.textContent = `🔗 내부링크 체크 ✅ (${posts.length}개)`;

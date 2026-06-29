@@ -1072,24 +1072,25 @@ def status(blog_id: str):
 
 
 # ── Whale 릴레이: chrome.storage 우회용 임시 글 목록 캐시 ──────────
-# content.js(page context)가 Naver에서 수집 → 서버에 저장
-# popup.js가 서버에서 읽기 (chrome.* API 불필요)
-_whale_relay: dict = {}   # blogId → {"posts": [...], "ts": float}
-_WHALE_RELAY_TTL = 3600   # 1시간
+# content.js(page context)가 Naver에서 수집 → DB에 저장
+# popup.js가 DB에서 읽기 (chrome.* API 불필요, Render 재시작 무관)
 
 @app.post("/api/whale-relay")
 async def whale_relay_set(request: Request):
     body = await request.json()
-    blog_id = body.get("blogId", "").strip()
-    posts   = body.get("posts", [])
+    blog_id    = body.get("blogId", "").strip()
+    posts      = body.get("posts", [])
+    session_id = body.get("sessionId", "").strip()
     if not blog_id:
         raise HTTPException(status_code=400, detail="blogId required")
-    _whale_relay[blog_id] = {"posts": posts, "ts": time.time()}
+    if not session_id or not db.session_exists(session_id):
+        raise HTTPException(status_code=401, detail="invalid session")
+    db.save_whale_relay(blog_id, posts)
     return {"ok": True, "count": len(posts)}
 
 @app.get("/api/whale-relay/{blog_id}")
 def whale_relay_get(blog_id: str):
-    entry = _whale_relay.get(blog_id)
-    if not entry or time.time() - entry["ts"] > _WHALE_RELAY_TTL:
+    posts = db.get_whale_relay(blog_id)
+    if posts is None:
         return {"ok": False, "posts": []}
-    return {"ok": True, "posts": entry["posts"]}
+    return {"ok": True, "posts": posts}
