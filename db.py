@@ -96,6 +96,13 @@ def init_db():
                 PRIMARY KEY (session_id, blog_id)
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS otp_store (
+                email      TEXT PRIMARY KEY,
+                code       TEXT NOT NULL,
+                expires_at DOUBLE PRECISION NOT NULL
+            )
+        """)
         for alter in [
             "ALTER TABLE ip_searches ADD COLUMN IF NOT EXISTS reset_date TEXT DEFAULT ''",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free'",
@@ -516,3 +523,29 @@ def get_user_blogs(session_id: str) -> list:
             (session_id,)
         )
         return [r["blog_id"] for r in cur.fetchall()]
+
+
+def save_otp(email: str, code: str, expires_at: float):
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO otp_store (email, code, expires_at)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (email) DO UPDATE SET code = EXCLUDED.code, expires_at = EXCLUDED.expires_at
+        """, (email, code, expires_at))
+        conn.commit()
+
+
+def get_otp(email: str) -> dict | None:
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT code, expires_at FROM otp_store WHERE email = %s", (email,))
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def delete_otp(email: str):
+    with get_db() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM otp_store WHERE email = %s", (email,))
+        conn.commit()

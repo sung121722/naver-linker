@@ -602,8 +602,6 @@ def register_email(req: EmailRegisterRequest):
 class RecoverRequest(BaseModel):
     email: str
 
-# OTP 인증코드 저장소 (메모리) — email → {code, expires_at}
-_otp_store: dict[str, dict] = {}
 _OTP_TTL = 600  # 10분
 
 @app.get("/api/auto-recover")
@@ -615,7 +613,7 @@ def auto_recover(email: str):
     if not user or user["plan"] == "free":
         raise HTTPException(status_code=404, detail="유료 플랜 구독 정보를 찾을 수 없습니다.")
     code = "".join(random.choices(string.digits, k=6))
-    _otp_store[email] = {"code": code, "expires_at": time.time() + _OTP_TTL}
+    db.save_otp(email, code, time.time() + _OTP_TTL)
     try:
         _send_email(
             email,
@@ -644,15 +642,15 @@ class VerifyRecoveryRequest(BaseModel):
 @app.post("/api/verify-recovery")
 def verify_recovery(req: VerifyRecoveryRequest):
     """인증코드 확인 → session_id 반환 (일회용)."""
-    entry = _otp_store.get(req.email)
+    entry = db.get_otp(req.email)
     if not entry:
         raise HTTPException(status_code=400, detail="인증코드를 먼저 요청해주세요.")
     if time.time() > entry["expires_at"]:
-        _otp_store.pop(req.email, None)
+        db.delete_otp(req.email)
         raise HTTPException(status_code=400, detail="인증코드가 만료되었습니다. 다시 요청해주세요.")
     if entry["code"] != req.code:
         raise HTTPException(status_code=400, detail="인증코드가 올바르지 않습니다.")
-    _otp_store.pop(req.email, None)
+    db.delete_otp(req.email)
     user = db.get_session_by_email(req.email)
     if not user or user["plan"] == "free":
         raise HTTPException(status_code=404, detail="유료 플랜 구독 정보를 찾을 수 없습니다.")
