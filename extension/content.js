@@ -168,11 +168,12 @@
     document.body.appendChild(btn);
   }
 
-  // 에디터는 동적으로 로딩되므로 주기적으로 확인
+  // 에디터는 동적으로 로딩되므로 주기적으로 확인 (최대 30초)
   const check = setInterval(() => {
     injectFloatingBtn();
     if (document.getElementById("nlinker-float-btn")) clearInterval(check);
   }, 1500);
+  setTimeout(() => clearInterval(check), 30000);
 
   // ── 현재 페이지 블로그 ID 감지 → popup으로 전송 ──────────
   function detectBlogId() {
@@ -190,9 +191,11 @@
   const detectedBlogId = detectBlogId();
   if (detectedBlogId) {
     try { chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId }).catch(() => {}); } catch (_) {}
-    // Whale 대비: 페이지 컨텍스트에서 글 목록 프리패치 → storage 캐시
-    // popup.js가 SW 없이도 캐시에서 바로 읽을 수 있음
-    _prefetchToStorage(detectedBlogId);
+    // 자기 블로그일 때만 프리패치 (남의 블로그 방문 시 불필요한 크롤링 방지)
+    chrome.storage.local.get("naver_linker_state").then(data => {
+      const myBlogId = data?.naver_linker_state?.blogId || "";
+      if (myBlogId && myBlogId === detectedBlogId) _prefetchToStorage(detectedBlogId);
+    }).catch(() => {});
   }
 
   async function _prefetchToStorage(blogId) {
