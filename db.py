@@ -1,4 +1,6 @@
+import json
 import os
+import time
 from contextlib import contextmanager
 from datetime import date
 import psycopg2
@@ -533,10 +535,9 @@ def get_user_blogs(session_id: str) -> list:
 
 
 def save_otp(email: str, code: str, expires_at: float):
-    import time as _time
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute("DELETE FROM otp_store WHERE expires_at < %s", (_time.time(),))
+        cur.execute("DELETE FROM otp_store WHERE expires_at < %s", (time.time(),))
         cur.execute("""
             INSERT INTO otp_store (email, code, expires_at)
             VALUES (%s, %s, %s)
@@ -560,31 +561,33 @@ def delete_otp(email: str):
         conn.commit()
 
 
-def session_exists(session_id: str) -> bool:
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT 1 FROM users WHERE session_id = %s", (session_id,))
-        return cur.fetchone() is not None
-
-
-def save_whale_relay(blog_id: str, posts: list):
-    import json, time as _time
+def save_whale_relay_if_owner(session_id: str, blog_id: str, posts: list) -> bool:
+    """소유권 확인 + 저장을 단일 쿼리로 처리. 소유권 없으면 False 반환."""
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO whale_relay (blog_id, posts_json, cached_at)
-            VALUES (%s, %s, %s)
-            ON CONFLICT (blog_id) DO UPDATE SET posts_json = EXCLUDED.posts_json, cached_at = EXCLUDED.cached_at
-        """, (blog_id, json.dumps(posts, ensure_ascii=False), _time.time()))
+            SELECT %s, %s, %s
+            WHERE EXISTS (
+                SELECT 1 FROM users    WHERE session_id = %s AND blog_id = %s
+                UNION ALL
+                SELECT 1 FROM user_blogs WHERE session_id = %s AND blog_id = %s
+            )
+            ON CONFLICT (blog_id) DO UPDATE
+                SET posts_json = EXCLUDED.posts_json, cached_at = EXCLUDED.cached_at
+            RETURNING blog_id
+        """, (blog_id, json.dumps(posts, ensure_ascii=False), time.time(),
+              session_id, blog_id, session_id, blog_id))
+        saved = cur.fetchone() is not None
         conn.commit()
+    return saved
 
 
 def get_whale_relay(blog_id: str, ttl: float = 3600.0) -> list | None:
-    import json, time as _time
     with get_db() as conn:
         cur = conn.cursor()
         cur.execute("SELECT posts_json, cached_at FROM whale_relay WHERE blog_id = %s", (blog_id,))
         row = cur.fetchone()
-    if not row or _time.time() - row["cached_at"] > ttl:
+    if not row or time.time() - row["cached_at"] > ttl:
         return None
     return json.loads(row["posts_json"])

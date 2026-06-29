@@ -191,25 +191,23 @@
   const detectedBlogId = detectBlogId();
   if (detectedBlogId) {
     try { chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId }).catch(() => {}); } catch (_) {}
-    // 자기 블로그일 때만 프리패치 (남의 블로그 방문 시 불필요한 크롤링 방지)
+    // 자기 블로그(또는 Pro 멀티블로그)일 때만 프리패치
     chrome.storage.local.get("naver_linker_state").then(data => {
-      const myBlogId = data?.naver_linker_state?.blogId || "";
-      if (myBlogId && myBlogId === detectedBlogId) _prefetchToStorage(detectedBlogId);
+      const s          = data?.naver_linker_state || {};
+      const myBlogId   = s.blogId    || "";
+      const sessionId  = s.sessionId || "";
+      const isPro      = s.plan === "pro";
+      if (sessionId && (myBlogId === detectedBlogId || isPro)) {
+        _prefetchToStorage(detectedBlogId, sessionId);
+      }
     }).catch(() => {});
   }
 
-  async function _prefetchToStorage(blogId) {
+  async function _prefetchToStorage(blogId, sessionId = "") {
     const btn = document.getElementById("nlinker-float-btn");
     try {
       const posts = await _proxyFetchAll(blogId);
       if (btn) btn.textContent = `🔗 저장 중... (${posts.length}개)`;
-
-      // 세션 ID 읽기 (서버 인증용)
-      let sessionId = "";
-      try {
-        const stored = await chrome.storage.local.get("naver_linker_state");
-        sessionId = stored?.naver_linker_state?.sessionId || "";
-      } catch (_) {}
 
       // 방법 1: 서버 릴레이 (Whale 전용 — chrome.storage 불필요)
       try {

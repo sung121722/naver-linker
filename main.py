@@ -1081,11 +1081,10 @@ async def whale_relay_set(request: Request):
     blog_id    = body.get("blogId", "").strip()
     posts      = body.get("posts", [])
     session_id = body.get("sessionId", "").strip()
-    if not blog_id:
-        raise HTTPException(status_code=400, detail="blogId required")
-    if not session_id or not db.session_exists(session_id):
-        raise HTTPException(status_code=401, detail="invalid session")
-    db.save_whale_relay(blog_id, posts)
+    if not blog_id or not session_id:
+        raise HTTPException(status_code=400, detail="blogId and sessionId required")
+    if not db.save_whale_relay_if_owner(session_id, blog_id, posts):
+        raise HTTPException(status_code=401, detail="not your blog")
     return {"ok": True, "count": len(posts)}
 
 @app.get("/api/whale-relay/{blog_id}")
