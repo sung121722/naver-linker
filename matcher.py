@@ -91,7 +91,7 @@ def find_related(posts: list, keyword: str, top_n: int = 5) -> list:
 
     for block in response.content:
         if block.type == "tool_use" and block.name == "recommend_posts":
-            results = block.input.get("recommendations", [])
+            results = [r for r in block.input.get("recommendations", []) if isinstance(r, dict)]
             for r in results:
                 r["date"] = date_map.get(r.get("url", ""), "")
             return results
