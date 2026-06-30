@@ -843,7 +843,7 @@ async function _directCall(msg) {
     if (msg.sessionId) body.session_id = msg.sessionId;
     if (msg.forceReplace) body.force_replace = true;
     const r = await fetch(`${SERVER_URL}/api/index`, { method: "POST", headers: _H, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || `Server error: ${r.status}`); }
     return { ok: true, ...await r.json() };
   }
   if (msg.type === "SEARCH") {
@@ -867,7 +867,7 @@ async function _directCall(msg) {
       method: "DELETE", headers: _H,
       body: JSON.stringify({ session_id: msg.sessionId, blog_id: msg.blogId }),
     });
-    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || `Server error: ${r.status}`); }
     return { ok: true, ...await r.json() };
   }
   return { ok: false, error: "Unknown message type" };

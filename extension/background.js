@@ -160,7 +160,10 @@ async function indexBlog(blogId, posts, existingSessionId = "", forceReplace = f
     headers: SERVER_HEADERS,
     body: JSON.stringify(body),
   });
-  if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+  if (!resp.ok) {
+    const respBody = await resp.json().catch(() => ({}));
+    throw new Error(respBody.detail || `Server error: ${resp.status}`);
+  }
   return resp.json();
 }
 
@@ -170,7 +173,10 @@ async function deleteBlog(sessionId, blogId) {
     headers: SERVER_HEADERS,
     body: JSON.stringify({ session_id: sessionId, blog_id: blogId }),
   });
-  if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `Server error: ${resp.status}`);
+  }
   return resp.json();
 }
 
