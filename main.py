@@ -910,6 +910,8 @@ async def billing_success(authKey: str, customerKey: str, session_id: str = "", 
     # 3단계: DB 저장 (빌링키 + 플랜 활성화 + 다음 결제일)
     db.save_billing_key(session_id, billing_key, customerKey, plan, amount)
 
+    from html import escape
+    safe_session_id = escape(session_id)
     plan_name = PLAN_NAMES[plan]
     return f"""<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -973,7 +975,7 @@ async function registerEmail() {{
     const res = await fetch('/api/register-email', {{
       method: 'POST',
       headers: {{'Content-Type': 'application/json'}},
-      body: JSON.stringify({{session_id: '{session_id}', email}})
+      body: JSON.stringify({{session_id: '{safe_session_id}', email}})
     }});
     msg.style.display = 'block';
     if (res.ok) {{
