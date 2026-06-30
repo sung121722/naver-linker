@@ -859,7 +859,7 @@ async function _directCall(msg) {
       method: "POST", headers: _H,
       body: JSON.stringify({ session_id: msg.sessionId, blog_id: msg.blogId, keyword: msg.keyword, top_n: msg.topN }),
     });
-    if (!r.ok) throw new Error(`Server error: ${r.status}`);
+    if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || `Server error: ${r.status}`); }
     return { ok: true, ...await r.json() };
   }
   if (msg.type === "DELETE_BLOG") {

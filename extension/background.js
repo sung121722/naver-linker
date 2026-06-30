@@ -195,7 +195,10 @@ async function detectDuplicate(sessionId, blogId, keyword, topN = 10) {
     headers: SERVER_HEADERS,
     body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword, top_n: topN }),
   });
-  if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `Server error: ${resp.status}`);
+  }
   return resp.json();
 }
 
