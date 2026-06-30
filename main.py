@@ -21,7 +21,8 @@ TOSS_CLIENT_KEY    = os.environ.get("TOSS_CLIENT_KEY", "")
 BASE_URL           = os.environ.get("BASE_URL", "https://naver-linker.onrender.com")
 DEV_SECRET         = os.environ.get("DEV_SECRET", "")
 RESEND_API_KEY     = os.environ.get("RESEND_API_KEY", "")
-BREVO_API_KEY      = os.environ.get("BREVO_API_KEY", "")
+GMAIL_USER         = os.environ.get("GMAIL_USER", "")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
 
 PLAN_PRICES = {
     "light": 2900,
@@ -568,22 +569,18 @@ def ping():
 
 
 def _send_email(to: str, subject: str, body: str):
-    if not BREVO_API_KEY:
-        raise RuntimeError("BREVO_API_KEY not set")
-    import requests as _requests
-    resp = _requests.post(
-        "https://api.brevo.com/v3/smtp/email",
-        headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
-        json={
-            "sender": {"name": "내부링크 도우미", "email": "kang020672@gmail.com"},
-            "to": [{"email": to}],
-            "subject": subject,
-            "htmlContent": body,
-        },
-        timeout=10,
-    )
-    if resp.status_code >= 400:
-        raise RuntimeError(f"Brevo error {resp.status_code}: {resp.text}")
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        raise RuntimeError("GMAIL_USER or GMAIL_APP_PASSWORD not set")
+    import smtplib
+    from email.mime.text import MIMEText
+    msg = MIMEText(body, "html", "utf-8")
+    msg["Subject"] = subject
+    msg["From"]    = f"네이버 내부링크 도우미 <{GMAIL_USER}>"
+    msg["To"]      = to
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
+        server.starttls()
+        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+        server.sendmail(GMAIL_USER, [to], msg.as_string())
 
 
 class EmailRegisterRequest(BaseModel):

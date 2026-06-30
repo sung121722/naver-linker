@@ -191,15 +191,37 @@
   const detectedBlogId = detectBlogId();
   if (detectedBlogId) {
     try { chrome.runtime.sendMessage({ type: "DETECTED_BLOG_ID", blogId: detectedBlogId }).catch(() => {}); } catch (_) {}
-    // 자기 블로그(또는 Pro 멀티블로그)일 때만 프리패치
+    // 자기 블로그(또는 Pro 멀티블로그)일 때만, 자동 수집이 켜져 있을 때만 프리패치
     chrome.storage.local.get("naver_linker_state").then(data => {
-      const s          = data?.naver_linker_state || {};
-      const myBlogId   = s.blogId    || "";
-      const sessionId  = s.sessionId || "";
-      const isPro      = s.plan === "pro";
-      if (sessionId && (myBlogId === detectedBlogId || isPro)) {
+      const s           = data?.naver_linker_state || {};
+      const myBlogId    = s.blogId    || "";
+      const sessionId   = s.sessionId || "";
+      const isPro       = s.plan === "pro";
+      const autoCollect = s.autoCollect !== false; // 기본값 true
+      if (sessionId && autoCollect && (myBlogId === detectedBlogId || isPro)) {
+        showAutoCollectNoticeOnce();
         _prefetchToStorage(detectedBlogId, sessionId);
       }
+    }).catch(() => {});
+  }
+
+  // 자동 수집 안내 — 최초 1회만 표시 (설정에서 끌 수 있음을 함께 안내)
+  function showAutoCollectNoticeOnce() {
+    chrome.storage.local.get("naver_linker_notice_shown").then(data => {
+      if (data?.naver_linker_notice_shown) return;
+      chrome.storage.local.set({ naver_linker_notice_shown: true });
+
+      const notice = document.createElement("div");
+      notice.textContent = "📡 이 블로그의 글 목록을 자동으로 동기화합니다. (확장 패널에서 끌 수 있어요)";
+      notice.style.cssText = [
+        "position:fixed", "bottom:78px", "right:28px", "z-index:2147483647",
+        "background:#212529", "color:white", "border-radius:8px",
+        "padding:10px 14px", "font-size:12px", "max-width:280px", "line-height:1.5",
+        "box-shadow:0 4px 16px rgba(0,0,0,0.25)",
+        "font-family:-apple-system,'Apple SD Gothic Neo',sans-serif",
+      ].join(";");
+      document.body.appendChild(notice);
+      setTimeout(() => { notice.remove(); }, 6000);
     }).catch(() => {});
   }
 

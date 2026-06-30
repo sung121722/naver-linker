@@ -353,6 +353,48 @@
     }
     .switch-blog-btn:hover { background: #02a84c; }
     .switch-blog-btn:disabled { background: #adb5bd; cursor: not-allowed; }
+
+    .auto-collect-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #f1f3f5;
+    }
+    .auto-collect-label {
+      font-size: 11px;
+      color: #868e96;
+      line-height: 1.5;
+      padding-right: 8px;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 34px;
+      height: 19px;
+      flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #ced4da;
+      border-radius: 19px;
+      transition: 0.15s;
+    }
+    .switch-slider::before {
+      position: absolute;
+      content: "";
+      height: 15px; width: 15px;
+      left: 2px; bottom: 2px;
+      background-color: white;
+      border-radius: 50%;
+      transition: 0.15s;
+    }
+    .switch input:checked + .switch-slider { background-color: #03C75A; }
+    .switch input:checked + .switch-slider::before { transform: translateX(15px); }
   </style>
 </head>
 <body>
@@ -391,6 +433,13 @@
       </div>
     </div>
     <div id="recoverMsg" style="font-size:11px;margin-top:6px;display:none;"></div>
+  </div>
+  <div class="auto-collect-row">
+    <div class="auto-collect-label">📡 자동 수집 — 내 블로그 페이지 방문 시 글 목록을 자동으로 동기화합니다</div>
+    <label class="switch">
+      <input type="checkbox" id="autoCollectToggle" checked>
+      <span class="switch-slider"></span>
+    </label>
   </div>
 </div>
 
@@ -474,6 +523,19 @@
     <div class="input-row">
       <input type="text" id="dupKeyword" placeholder="쓰려는 글 키워드 입력" />
       <button id="dupBtn">감지</button>
+    </div>
+    <div class="topn-row">
+      <span class="topn-label">결과 수</span>
+      <div class="topn-btns">
+        <button class="dup-topn-btn" data-n="5">5개</button>
+        <button class="dup-topn-btn active" data-n="10">10개</button>
+        <button class="dup-topn-btn" data-n="20">20개</button>
+        <button class="dup-topn-btn" data-n="30">30개</button>
+        <button class="dup-topn-btn" data-n="50">50개</button>
+      </div>
+    </div>
+    <div style="font-size:11px; color:#868e96; margin-top:4px; line-height:1.5;">
+      🔍 유사도 20% 미만은 결과에서 자동 제외됩니다.
     </div>
     <div class="limit-bar" id="dupLimitBar" style="display:none;">
       이번 달 사용: <span id="dupUsedCount">0</span> / <span id="dupLimitCount">5</span>회

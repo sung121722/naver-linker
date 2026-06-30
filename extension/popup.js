@@ -17,6 +17,7 @@ let state = {
   emailRegistered: false,
   email: "",
   linksCopied: 0,
+  autoCollect: true,
 };
 
 // DOM
@@ -63,8 +64,14 @@ const otpRow = document.getElementById("otpRow");
 const otpInput = document.getElementById("otpInput");
 const otpVerifyBtn = document.getElementById("otpVerifyBtn");
 const closePanelBtn = document.getElementById("closePanelBtn");
+const autoCollectToggle = document.getElementById("autoCollectToggle");
 
 closePanelBtn.addEventListener("click", () => window.close());
+
+autoCollectToggle.addEventListener("change", () => {
+  state.autoCollect = autoCollectToggle.checked;
+  saveState();
+});
 
 // 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
@@ -218,6 +225,8 @@ chrome.storage.local.get(_initKeys, (data) => {
   }
   if (data[STORAGE_KEY]) {
     Object.assign(state, data[STORAGE_KEY]);
+    if (state.autoCollect === undefined) state.autoCollect = true;
+    autoCollectToggle.checked = state.autoCollect;
     blogIdInput.value = state.blogId;
     if (state.sessionId) {
       showStatus(`✅ ${state.blogId} — 글 ${state.postCount}개 등록됨`, "success");
@@ -325,7 +334,7 @@ emailBannerBtn.addEventListener("click", async () => {
 });
 
 cancelBtn.addEventListener("click", async () => {
-  if (!confirm(`구독을 해지하면 즉시 무료 플랜으로 전환됩니다.\n미사용 상태 7일 이내 해지 시 전액 환불 가능 (kang020672@gmail.com 문의).\n계속하시겠습니까?`)) return;
+  if (!confirm(`구독을 해지하면 즉시 무료 플랜으로 전환됩니다.\n결제 후 7일 이내, 검색 기능을 한 번도 사용하지 않은 경우에 한해 전액 환불 가능 (kang020672@gmail.com 문의).\n계속하시겠습니까?`)) return;
   cancelBtn.disabled = true;
   try {
     const res = await fetch(`${SERVER_URL}/api/cancel`, {
@@ -550,7 +559,14 @@ document.querySelectorAll(".topn-btn").forEach((btn) => {
   });
 });
 
-const selectedDupTopN = 10;
+let selectedDupTopN = 10;
+document.querySelectorAll(".dup-topn-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".dup-topn-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedDupTopN = parseInt(btn.dataset.n);
+  });
+});
 
 // ── 정렬 버튼 ────────────────────────────────────────────
 let currentResults = [];
@@ -827,7 +843,7 @@ async function _directCall(msg) {
   if (msg.type === "DUPLICATE") {
     const r = await fetch(`${SERVER_URL}/api/duplicate`, {
       method: "POST", headers: _H,
-      body: JSON.stringify({ session_id: msg.sessionId, blog_id: msg.blogId, keyword: msg.keyword }),
+      body: JSON.stringify({ session_id: msg.sessionId, blog_id: msg.blogId, keyword: msg.keyword, top_n: msg.topN }),
     });
     if (!r.ok) throw new Error(`Server error: ${r.status}`);
     return { ok: true, ...await r.json() };

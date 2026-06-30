@@ -189,11 +189,11 @@ async function searchRelated(sessionId, blogId, keyword, topN = 5, sort = "relev
 }
 
 // 중복 글 감지
-async function detectDuplicate(sessionId, blogId, keyword) {
+async function detectDuplicate(sessionId, blogId, keyword, topN = 10) {
   const resp = await fetch(`${SERVER_API}/api/duplicate`, {
     method: "POST",
     headers: SERVER_HEADERS,
-    body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword }),
+    body: JSON.stringify({ session_id: sessionId, blog_id: blogId, keyword, top_n: topN }),
   });
   if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
   return resp.json();
@@ -241,7 +241,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const result = await searchRelated(msg.sessionId, msg.blogId, msg.keyword, msg.topN, msg.sort);
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "DUPLICATE") {
-        const result = await detectDuplicate(msg.sessionId, msg.blogId, msg.keyword);
+        const result = await detectDuplicate(msg.sessionId, msg.blogId, msg.keyword, msg.topN);
         sendResponse({ ok: true, ...result });
       } else if (msg.type === "OPEN_SIDE_PANEL") {
         chrome.sidePanel.open({ tabId: _sender.tab.id });
