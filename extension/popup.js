@@ -661,28 +661,17 @@ function renderSearchResults(results) {
     return;
   }
   searchResults.innerHTML = results.map((r) => {
-    const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}" title="에디터에 링크를 바로 삽입합니다 (깔끔하게 카드만 표시)">📎 삽입</button>`;
+    const insertBtn = `<button class="insert-btn insert-btn-full" data-url="${r.url}" data-title="${escapeHtml(r.title)}" title="에디터에 링크를 바로 삽입합니다 (깔끔하게 카드만 표시)">📎 삽입</button>`;
     return `
       <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
         <div class="title">
           ${escapeHtml(r.title)}
         </div>
-        <div class="meta-row">
-          <div class="action-btns">
-            ${insertBtn}
-            <button class="copy-btn" data-url="${r.url}" title="URL을 클립보드에 복사합니다 (붙여넣기 시 URL 텍스트 + 카드가 함께 표시됩니다)">🔗 복사</button>
-          </div>
-        </div>
+        ${insertBtn}
       </div>`;
   }).join("");
 
-  document.querySelectorAll(".copy-btn").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      copyLink(btn.dataset.url);
-    });
-  });
-  document.querySelectorAll(".insert-btn").forEach((btn) => {
+  searchResults.querySelectorAll(".insert-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       insertLinkToEditor(btn.dataset.url);
@@ -740,20 +729,29 @@ function renderDupResults(results) {
   dupResults.innerHTML = results.map((r) => {
     const sim = r.similarity || 0;
     const color = sim >= 70 ? "#c0392b" : sim >= 40 ? "#e67e22" : "#2980b9";
+    const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}" title="에디터에 링크를 바로 삽입합니다 (깔끔하게 카드만 표시)">📎 삽입</button>`;
     return `
-      <div class="result-item" data-url="${r.url}">
+      <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
         <div class="title" style="color:${color}">
           ${escapeHtml(r.title)}
           <span class="badge" style="background:#f8f9fa;color:${color};border:1px solid ${color}">
             유사도 ${sim}%
           </span>
         </div>
-        <div class="meta">${r.date || ""} · 클릭하면 링크 복사</div>
+        <div class="meta-row">
+          <div class="meta-date">${r.date || ""}</div>
+          <div class="action-btns">
+            ${insertBtn}
+          </div>
+        </div>
       </div>`;
   }).join("");
 
-  document.querySelectorAll(".result-item").forEach((el) => {
-    el.addEventListener("click", () => copyLink(el.dataset.url));
+  dupResults.querySelectorAll(".insert-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      insertLinkToEditor(btn.dataset.url);
+    });
   });
 }
 
@@ -821,7 +819,10 @@ async function _directCall(msg) {
 
     // 3순위: popup 직접 fetch — Chrome SW 죽었을 때만 여기 도달
     // Whale에서는 _fetchAllPosts가 Extension context invalidated 유발하므로 실행 금지
-    // → 이 시점까지 왔다면 content.js가 아직 수집 중 → 안내 메시지
+    // → 이 시점까지 왔다면 content.js가 아직 수집 중이거나 자동 수집이 꺼져있음
+    if (state.autoCollect === false) {
+      throw new Error("자동 수집이 꺼져 있어 글 목록을 가져올 수 없습니다. 패널 상단에서 자동 수집을 켜주세요.");
+    }
     throw new Error("블로그 작성 페이지에서 🔗 버튼이 ✅로 바뀐 후 다시 시도해주세요.");
   }
   if (msg.type === "INDEX_BLOG") {
@@ -928,22 +929,6 @@ function updateLimitBar() {
   dupLimitBar.style.display = "block";
   dupUsedCount.textContent = state.searchCount;
   dupLimitCount.textContent = state.dailyLimit;
-}
-
-function copyLink(url) {
-  navigator.clipboard.writeText(url).then(() => {
-    showToast("링크 복사됨!");
-    if (state.sessionId) {
-      fetch(`${SERVER_URL}/api/track-copy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: state.sessionId }),
-      }).catch(() => {});
-      state.linksCopied = (state.linksCopied || 0) + 1;
-      saveState();
-      updatePlanBar();
-    }
-  });
 }
 
 function showToast(msg) {
