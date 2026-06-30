@@ -218,7 +218,7 @@
     }
     .meta-date { font-size: 11px; color: #868e96; }
     .action-btns { display: flex; gap: 4px; }
-    .insert-btn, .copy-btn {
+    .insert-btn {
       font-size: 11px;
       padding: 3px 8px;
       border-radius: 5px;
@@ -228,8 +228,14 @@
     }
     .insert-btn { background: #03C75A; color: white; }
     .insert-btn:hover { background: #02a84c; }
-    .copy-btn { background: #e9ecef; color: #495057; }
-    .copy-btn:hover { background: #dee2e6; }
+
+    .insert-btn-full {
+      width: 100%;
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+      margin-top: 6px;
+    }
 
     .copy-toast {
       position: fixed;
@@ -489,7 +495,7 @@
   <!-- 관련 글 찾기 -->
   <div class="tab-panel active" id="tab-search">
     <div class="input-row">
-      <input type="text" id="searchKeyword" placeholder="새 글 키워드 입력" />
+      <input type="text" id="searchKeyword" placeholder="키워드 입력" />
       <button id="searchBtn">검색</button>
     </div>
     <div class="topn-row">
@@ -521,7 +527,7 @@
   <!-- 중복 감지 -->
   <div class="tab-panel" id="tab-duplicate">
     <div class="input-row">
-      <input type="text" id="dupKeyword" placeholder="쓰려는 글 키워드 입력" />
+      <input type="text" id="dupKeyword" placeholder="키워드 입력" />
       <button id="dupBtn">감지</button>
     </div>
     <div class="topn-row">
