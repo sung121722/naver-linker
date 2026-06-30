@@ -73,11 +73,7 @@ autoCollectToggle.addEventListener("change", () => {
   saveState();
 });
 
-// 글쓰기 모드: content.js에서 AUTO_SUGGEST 수신
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === "AUTO_SUGGEST") {
-    showAutoSuggest(msg.keyword, msg.results);
-  }
   if (msg.type === "DETECTED_BLOG_ID") {
     const detected = msg.blogId;
     if (!detected || detected === state.blogId || !state.sessionId) return;
@@ -110,34 +106,6 @@ chrome.runtime.onMessage.addListener((msg) => {
     showToast("📝 검색 버튼을 눌러 내부링크를 찾아보세요!");
   }
 });
-
-function showAutoSuggest(keyword, results) {
-  // 기능 탭이 없으면 무시
-  if (featureSection.style.display === "none") return;
-
-  // 관련 글 탭으로 자동 전환
-  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-  document.querySelector('[data-tab="search"]').classList.add("active");
-  document.getElementById("tab-search").classList.add("active");
-
-  // 키워드 입력창에 표시
-  searchKeyword.value = keyword.length > 30 ? keyword.slice(0, 30) + "…" : keyword;
-
-  // 결과 표시
-  if (results.length) {
-    renderSearchResults(results);
-  } else {
-    searchResults.innerHTML = `<div class="empty">관련 글을 찾지 못했습니다.</div>`;
-  }
-
-  // 자동 분석 뱃지 표시
-  limitBar.style.display = "block";
-  usedCount.textContent = state.searchCount;
-  limitCount.textContent = state.dailyLimit;
-}
-
-
 
 // 에디터에 링크 삽입 — URL만 다이얼로그에 입력 (제목 텍스트 삽입 없음)
 // 사용자가 에디터의 확인 버튼을 클릭해야 최종 삽입됨
@@ -243,7 +211,7 @@ chrome.storage.local.get(_initKeys, (data) => {
 
 function saveState() {
   try {
-    chrome.storage.local.set({ [STORAGE_KEY]: state });
+    chrome.storage.local.set({ [STORAGE_KEY]: state }).catch(() => {});
   } catch (_) {
     // Extension context invalidated (확장 리로드 중 발생) — 무시
   }

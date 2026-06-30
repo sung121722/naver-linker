@@ -209,7 +209,7 @@
   function showAutoCollectNoticeOnce() {
     chrome.storage.local.get("naver_linker_notice_shown").then(data => {
       if (data?.naver_linker_notice_shown) return;
-      chrome.storage.local.set({ naver_linker_notice_shown: true });
+      chrome.storage.local.set({ naver_linker_notice_shown: true }).catch(() => {});
 
       const notice = document.createElement("div");
       notice.textContent = "📡 이 블로그의 글 목록을 자동으로 동기화합니다. (확장 패널에서 끌 수 있어요)";
@@ -245,7 +245,7 @@
 
       // 방법 2: chrome.storage 병행 저장 (Chrome 호환성 유지)
       try {
-        chrome.storage.local.set({ naver_linker_posts_cache: { blogId, posts, cachedAt: Date.now() } });
+        chrome.storage.local.set({ naver_linker_posts_cache: { blogId, posts, cachedAt: Date.now() } }).catch(() => {});
       } catch (_) {}
 
     } catch (e) {
