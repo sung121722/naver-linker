@@ -729,7 +729,7 @@ function renderDupResults(results) {
   dupResults.innerHTML = results.map((r) => {
     const sim = r.similarity || 0;
     const color = sim >= 70 ? "#c0392b" : sim >= 40 ? "#e67e22" : "#2980b9";
-    const insertBtn = `<button class="insert-btn" data-url="${r.url}" data-title="${escapeHtml(r.title)}" title="에디터에 링크를 바로 삽입합니다 (깔끔하게 카드만 표시)">📎 삽입</button>`;
+    const insertBtn = `<button class="insert-btn insert-btn-full" data-url="${r.url}" data-title="${escapeHtml(r.title)}" title="에디터에 링크를 바로 삽입합니다 (깔끔하게 카드만 표시)">📎 삽입</button>`;
     return `
       <div class="result-item" data-url="${r.url}" data-title="${escapeHtml(r.title)}">
         <div class="title" style="color:${color}">
@@ -738,12 +738,7 @@ function renderDupResults(results) {
             유사도 ${sim}%
           </span>
         </div>
-        <div class="meta-row">
-          <div class="meta-date">${r.date || ""}</div>
-          <div class="action-btns">
-            ${insertBtn}
-          </div>
-        </div>
+        ${insertBtn}
       </div>`;
   }).join("");
 
