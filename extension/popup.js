@@ -110,11 +110,11 @@ chrome.runtime.onMessage.addListener((msg) => {
 // 에디터에 링크 삽입 — URL만 다이얼로그에 입력 (제목 텍스트 삽입 없음)
 // 사용자가 에디터의 확인 버튼을 클릭해야 최종 삽입됨
 async function insertLinkToEditor(linkUrl) {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tabId = tabs[0]?.id;
-  if (!tabId) return;
-
   try {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tabId = tabs[0]?.id;
+    if (!tabId) return;
+
     const result = await chrome.scripting.executeScript({
       target: { tabId, allFrames: true },
       func: (url) => {
@@ -753,42 +753,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
 // ── 유틸 ─────────────────────────────────────────────────
 
 // 서비스 워커 비활성 시 popup.js에서 직접 API 호출 (Whale 등 호환성)
-const _NAVER_API = "https://blog.naver.com/PostTitleListAsync.nhn";
-const _PER_PAGE  = 30;
-const _H         = { "Content-Type": "application/json" };
-
-async function _fetchPage(blogId, page) {
-  const url = `${_NAVER_API}?blogId=${encodeURIComponent(blogId)}&currentPage=${page}&countPerPage=${_PER_PAGE}&totalCount=0`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Naver API error: ${r.status}`);
-  const text = await r.text();
-  return JSON.parse(text.replace(/\\(?!["\\/bfnrtu])/g, "\\\\"));
-}
-
-function _decodeTitle(t) {
-  let s = t;
-  try { s = decodeURIComponent(t.replace(/\+/g, " ")); } catch (_) { s = t.replace(/\+/g, " "); }
-  return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-          .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-          .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(+c));
-}
-
-async function _fetchAllPosts(blogId) {
-  const first = await _fetchPage(blogId, 1);
-  const total = parseInt(first.totalCount || 0);
-  if (!total) return [];
-  const pages = Math.ceil(total / _PER_PAGE);
-  const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => _fetchPage(blogId, i + 2)));
-  const posts = [];
-  const base = `https://blog.naver.com/${blogId}`;
-  for (const pg of [first, ...rest]) {
-    for (const item of pg.postList || []) {
-      if (String(item.openType) === "0") continue; // 비공개 제외
-      posts.push({ title: _decodeTitle(item.title || ""), url: `${base}/${item.logNo}`, date: item.addDate || "" });
-    }
-  }
-  return posts;
-}
+const _H = { "Content-Type": "application/json" };
 
 async function _directCall(msg) {
   if (msg.type === "FETCH_POSTS") {
@@ -802,9 +767,8 @@ async function _directCall(msg) {
       return { ok: true, posts: cached.posts };
     }
 
-    // 3순위: popup 직접 fetch — Chrome SW 죽었을 때만 여기 도달
-    // Whale에서는 _fetchAllPosts가 Extension context invalidated 유발하므로 실행 금지
-    // → 이 시점까지 왔다면 content.js가 아직 수집 중이거나 자동 수집이 꺼져있음
+    // relay/캐시 둘 다 비어있음 → content.js가 아직 수집 중이거나 자동 수집이 꺼져있음
+    // (popup에서 직접 크롤링은 Whale에서 Extension context invalidated를 유발해 실행 안 함)
     if (state.autoCollect === false) {
       throw new Error("자동 수집이 꺼져 있어 글 목록을 가져올 수 없습니다. 패널 상단에서 자동 수집을 켜주세요.");
     }
