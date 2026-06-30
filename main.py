@@ -400,6 +400,9 @@ async def duplicate(req: DuplicateRequest, request: Request):
     db.reset_monthly_if_due(session_id)
     count, plan = db.get_search_count(session_id)
 
+    if plan == "light":
+        raise HTTPException(status_code=403, detail="중복 감지는 베이직 이상 플랜에서 사용 가능합니다.")
+
     limit = db.get_limit(plan)
 
     if plan == "free":

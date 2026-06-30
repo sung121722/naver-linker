@@ -117,6 +117,9 @@
       transition: all 0.15s;
     }
     .tab.active { color: #03C75A; border-bottom-color: #03C75A; }
+    .tab.locked { color: #ced4da; cursor: not-allowed; }
+    .tab.locked.active { color: #ced4da; border-bottom-color: transparent; }
+    .tab.locked::after { content: " 🔒"; font-size: 10px; }
 
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }

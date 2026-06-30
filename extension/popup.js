@@ -278,6 +278,20 @@ function updatePlanBar() {
   } else {
     blogSwitcher.style.display = "none";
   }
+
+  updateDuplicateTabLock(plan);
+}
+
+// 라이트 플랜은 중복 감지 기능 잠금
+function updateDuplicateTabLock(plan) {
+  const dupTab = document.querySelector('[data-tab="duplicate"]');
+  const isLocked = plan === "light";
+  dupTab.classList.toggle("locked", isLocked);
+  dupTab.title = isLocked ? "베이직 이상 플랜에서 사용 가능합니다" : "";
+
+  if (isLocked && dupTab.classList.contains("active")) {
+    document.querySelector('[data-tab="search"]').click();
+  }
 }
 
 async function fetchPlan() {
@@ -753,6 +767,10 @@ function renderDupResults(results) {
 // ── 탭 전환 ──────────────────────────────────────────────
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
+    if (tab.classList.contains("locked")) {
+      showToast("🔒 베이직 이상 플랜에서 사용 가능합니다");
+      return;
+    }
     document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     tab.classList.add("active");
