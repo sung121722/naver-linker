@@ -242,7 +242,11 @@ chrome.storage.local.get(_initKeys, (data) => {
 });
 
 function saveState() {
-  chrome.storage.local.set({ [STORAGE_KEY]: state });
+  try {
+    chrome.storage.local.set({ [STORAGE_KEY]: state });
+  } catch (_) {
+    // Extension context invalidated (확장 리로드 중 발생) — 무시
+  }
 }
 
 
